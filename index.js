@@ -16,6 +16,11 @@ app.get("/", (req, res) => {
     res.send("API is running...");
 });
 
+// auth route
+app.use("/api", authRoutes);
+
+
+
 mongoose.connect(process.env.MONGO_URI)
 .then(() => console.log("MongoDB Connected"))
 .catch((err) => console.error("MongoDB connection error:", err));
