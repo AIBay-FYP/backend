@@ -1,7 +1,37 @@
 const express = require("express");
 const admin = require("../firebaseAdmin");
+const mongoose = require("mongoose");
 const User = require("../models/user");
 const router = express.Router();
+
+/**
+ * Function to generate the next sequential UserID in the format U001, U002, etc.
+ */
+const getNextUserID = async () => {
+    try {
+        const lastUser = await User.findOne().sort({ UserID: -1 }).lean(); // Sort by UserID to get last assigned one
+        
+        if (lastUser && lastUser.UserID) {
+            const lastNumber = parseInt(lastUser.UserID.substring(1)); // Extract number from U001
+            let nextNumber = lastNumber + 1;
+
+            // Ensure uniqueness
+            while (await User.findOne({ UserID: `U${String(nextNumber).padStart(3, "0")}` })) {
+                nextNumber++; // Increment if exists
+            }
+
+            const nextUserID = `U${String(nextNumber).padStart(3, "0")}`;
+            console.log(`✅ Generated new UserID: ${nextUserID}`);
+            return nextUserID;
+        }
+        
+        console.log(`✅ No existing users found, starting from U001`);
+        return "U001"; // Start from U001 if no users exist
+    } catch (error) {
+        console.error("❌ Error generating UserID:", error);
+        throw new Error("Failed to generate UserID");
+    }
+};
 
 
 router.post("/verifyUser", async (req, res) => {
@@ -9,52 +39,56 @@ router.post("/verifyUser", async (req, res) => {
         const { token, name, email } = req.body;
 
         if (!token) {
-            return res.status(400).json({
-                success: false,
-                message: "Token is required.",
-            });
+            return res.status(400).json({ success: false, message: "Token is required." });
         }
 
+        // 🔹 Verify Firebase token
         const decodedToken = await admin.auth().verifyIdToken(token);
-        console.log(decodedToken); 
+        console.log("✅ Decoded Firebase Token:", decodedToken);
 
         const { uid, phone_number } = decodedToken;
 
-        let user = await User.findById(uid);
+        // 🔹 Check if user already exists
+        let user = await User.findOne({ Email: email });
 
         if (!user) {
-            if (!name || !email) {
-                return res.status(400).json({
-                    success: false,
-                    message: "Name and email are required for new users.",
-                });
-            }
+            const newUserID = await getNextUserID(); // Ensure we get a valid UserID
+            // const newUserID = "U009"; // Ensure we get a valid UserID
+            console.log(`✅ Assigning UserID: ${newUserID} to new user`);
 
             user = new User({
-                _id: uid,
-                UserID: 'U009',
-                Name:name,
+                UserID: newUserID,
+                FirebaseUID: uid,
+                Name: name,
                 Email: email,
+                Location: "city",
                 ContactNumber: phone_number || null,
-                RoleType: "Consumer", 
-                createdAt: new Date(),
+                RoleType: "User", // Default role
+                CreatedAt: new Date(),
             });
 
+            await user.save(); // Save new user
+            console.log("✅ New user saved successfully");
+        } else {
+            console.log(`🔹 User already exists, updating details for ${email}`);
+
+            user.FirebaseUID = uid;
+            user.Name = name;
+            user.ContactNumber = phone_number || null;
+            user.UpdatedAt = new Date();
             await user.save();
+            console.log("✅ Existing user updated successfully");
         }
-        res.json({ success: true, user });
+
+        return res.status(200).json({ success: true, message: "User verified successfully.", user });
 
     } catch (error) {
-        console.error("Error verifying user:", error);
+        console.error("❌ Error verifying user:", error);
 
-        if (error.code === 'auth/argument-error') {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid Firebase token.",
-            });
+        if (error.code === 11000) {
+            return res.status(400).json({ success: false, message: "Email is already in use." });
         }
 
-        // Handle other potential errors
         res.status(500).json({ success: false, message: "Internal server error." });
     }
 });
