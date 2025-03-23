@@ -1,12 +1,12 @@
 const mongoose = require("mongoose");
 
 const ListingSchema = new mongoose.Schema({
-  ListingID: String,
   ProviderID: mongoose.Schema.Types.ObjectId,
   Title: String,
   Description: String,
   IsNegotiable: Boolean,
-  Availability: String,
+  IsFixedPrice: Boolean,
+  Availability: Boolean,
   Category: String,
   Photos: [String],
   DemandScore: Number,
@@ -21,7 +21,29 @@ const ListingSchema = new mongoose.Schema({
   Keywords: [String],
   MaxPrice: Number,
   MinPrice: Number,
+  FixedPrice: { type: Number, default: 0 },
+  RentalDays: Number,
   Currency: String,
+  Documents: { type: [String], default: [] },
 });
+
+// Pre-save hook to enforce business logic
+ListingSchema.pre("save", function (next) {
+  if (this.IsNegotiable) {
+    this.IsFixedPrice = false;
+    this.FixedPrice = 0;
+  } else if (this.IsFixedPrice) {
+    this.IsNegotiable = false;
+    this.MinPrice = 0;
+    this.MaxPrice = 0;
+  } else if (this.ServiceType == "Sale") {
+    this.RentalDays = 0;
+  }
+
+  next();
+});
+
+// Enable full-text search indexing
+ListingSchema.index({ title: "text", description: "text", keywords: "text" });
 
 module.exports = mongoose.model("Listings", ListingSchema);

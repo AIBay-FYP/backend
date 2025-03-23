@@ -2,53 +2,174 @@ const express = require("express");
 const router = express.Router();
 const Listing = require("../models/Listings");
 
-// GET listings with filters
+// Get all listings
 router.get("/", async (req, res) => {
   try {
-    let query = {};
+    const listings = await Listing.find();
+    return res.status(200).json(listings);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
 
-    if (req.query.category) {
-      query.Category = req.query.category;
-    }
 
-    if (req.query.minPrice && req.query.maxPrice) {
-      query.MinPrice = { $gte: parseInt(req.query.minPrice) };
-      query.MaxPrice = { $lte: parseInt(req.query.maxPrice) };
-    }
+// Get listings by category
+router.get("/:category", async (req, res) => {
+  try {
+      const category = decodeURIComponent(req.params.category); // Decode URL component
+      const listings = await Listing.find({ Category: category }); // Filter by category
+      res.json(listings);
+  } catch (error) {
+      console.error("Error fetching listings:", error);
+      res.status(500).json({ message: "Internal Server Error" });
+  }
+});
 
-    if (req.query.location) {
-      query.Location = req.query.location;
-    }
+  // Search Listings API
+  router.get("/search", async (req, res) => {
+  try {
+    const { query, category, minPrice, maxPrice, location } = req.query;
 
-    if (req.query.isNegotiable !== undefined) {
-      query.IsNegotiable = req.query.isNegotiable === "true";
-    }
+    let filter = {};
 
-    if (req.query.serviceType) {
-      query.ServiceType = req.query.serviceType;
-    }
-
-    if (req.query.search) {
-      query.$or = [
-        { Title: { $regex: req.query.search, $options: "i" } },
-        { Description: { $regex: req.query.search, $options: "i" } },
-        { Keywords: { $in: [req.query.search] } },
+    // Full-text search on product name and description
+    if (query) {
+      filter.$or = [
+        { title: { $regex: query, $options: "i" } }, // Case-insensitive title search
+        { description: { $regex: query, $options: "i" } }, // Case-insensitive description search
+        { keywords: { $in: query.split(" ") } }, // Matches any keyword in the array
       ];
     }
 
-    let sort = {};
-    if (req.query.sortBy) {
-      if (req.query.sortBy === "price") {
-        sort.MinPrice = 1;
-      } else if (req.query.sortBy === "demandScore") {
-        sort.DemandScore = -1;
-      }
+    // Filter by category
+    if (category) {
+      filter.category = category;
     }
 
-    const listings = await Listing.find(query).sort(sort);
-    res.json(listings);
+    // Filter by price range
+    if (minPrice && maxPrice) {
+      filter.$or = [
+        { fixedPrice: { $gte: minPrice, $lte: maxPrice } },
+        { minPrice: { $gte: minPrice }, maxPrice: { $lte: maxPrice } }
+      ];
+    } else if (minPrice) {
+      filter.$or = [
+        { fixedPrice: { $gte: minPrice } },
+        { minPrice: { $gte: minPrice } }
+      ];
+    } else if (maxPrice) {
+      filter.$or = [
+        { fixedPrice: { $lte: maxPrice } },
+        { maxPrice: { $lte: maxPrice } }
+      ];
+    }
+
+    // Filter by location 
+    if (location) {
+      filter.location = { $regex: location, $options: "i" };
+    }
+
+    // Execute the search
+    const listings = await Listing.find(filter);
+
+    res.json({ success: true, data: listings });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
+
+
+// Create a new listing
+router.post("/", async (req, res) => {
+  try {
+    const {
+      ProviderID,
+      Title,
+      Description,
+      IsNegotiable,
+      IsFixedPrice,
+      Availability,
+      Category,
+      Photos,
+      DemandScore,
+      FAQs,
+      ServiceType,
+      DateCreated,
+      DatePosted,
+      Location,
+      DaysAvailable,
+      SecurityFee,
+      CancellationFee,
+      Keywords,
+      MaxPrice,
+      MinPrice,
+      FixedPrice,
+      RentalDays,
+      Currency,
+      Documents,
+    } = req.body;
+
+    let newListing = new Listing({
+      ProviderID,
+      Title,
+      Description,
+      IsNegotiable,
+      IsFixedPrice,
+      Availability,
+      Category,
+      Photos,
+      DemandScore,
+      FAQs,
+      ServiceType,
+      DateCreated,
+      DatePosted,
+      Location,
+      DaysAvailable,
+      SecurityFee,
+      CancellationFee,
+      Keywords,
+      MaxPrice,
+      MinPrice,
+      FixedPrice,
+      RentalDays,
+      Currency,
+      Documents,
+    });
+
+    await newListing.save();
+    return res.status(201).json({ message: "Listing created successfully!", listing: newListing });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Update a listing
+router.put("/:id", async (req, res) => {
+  try {
+    const updatedData = req.body;
+
+    // Apply Business Logic
+    if (updatedData.IsNegotiable) {
+      updatedData.IsFixedPrice = false;
+      updatedData.FixedPrice = 0;
+    } else if (updatedData.IsFixedPrice) {
+      updatedData.IsNegotiable = false;
+      updatedData.MinPrice = 0;
+      updatedData.MaxPrice = 0;
+    }
+
+    if (updatedData.ServiceType === "Sale") {
+      updatedData.RentalDays = 0;
+    }
+
+    const updatedListing = await Listing.findByIdAndUpdate(req.params.id, updatedData, { new: true });
+
+    if (!updatedListing) return res.status(404).json({ message: "Listing not found" });
+
+    return res.status(200).json({ message: "Listing updated successfully!", listing: updatedListing });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 });
 
