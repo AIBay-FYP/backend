@@ -3,8 +3,7 @@ const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const authRoutes = require('./routes/auth');
-// const authRoutes = require("./routes/auth");
-// const listings = require("./routes/listings");
+const listings = require("./routes/listings");
 
 dotenv.config();
 
@@ -17,10 +16,7 @@ app.get("/", (req, res) => {
     res.send("API is running...");
 });
 
-// const authRoutes = require("./routes/auth");
-
-// auth route
-// app.use("/api", authRoutes);
+app.use("/api", authRoutes);
 app.use("/listings", listings);
 
 

@@ -93,4 +93,59 @@ router.post("/verifyUser", async (req, res) => {
     }
 });
 
+router.patch("/updateUser/:firebaseUID", async (req, res) => {
+    try {
+        const { firebaseUID } = req.params;
+        const { role } = req.query;
+        const { Name, Email, ContactNumber, Location, CNIC, BusinessType, ServiceType, Interests, updateInterests } = req.body;
+
+        if (!role) {
+            return res.status(400).json({ success: false, message: "Role is required as a query parameter." });
+        }
+
+        let user = await User.findOne({ FirebaseUID: firebaseUID });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+
+        // Ensure role matches the existing user
+        if (role !== user.RoleType) {
+            return res.status(403).json({ success: false, message: "Unauthorized role update." });
+        }
+
+        // Allow basic user updates
+        if (Name) user.Name = Name;
+        if (Email) user.Email = Email;
+        if (ContactNumber) user.ContactNumber = ContactNumber;
+        if (Location) user.Location = Location;
+
+        // Handle Interests update correctly
+        if (Array.isArray(Interests)) {
+            if (updateInterests === "overwrite") {
+                user.Interests = Interests; // Overwrite entire Interests array
+            } else if (updateInterests === "add") {
+                user.Interests = [...new Set([...user.Interests, ...Interests])]; // Merge without duplicates
+            } else if (updateInterests === "remove") {
+                user.Interests = user.Interests.filter(interest => !Interests.includes(interest)); // Remove specified interests
+            }
+        }
+
+        // Allow Provider-specific updates
+        if (role === "Provider") {
+            if (CNIC) user.CNIC = CNIC;
+            if (BusinessType) user.BusinessType = BusinessType;
+            if (ServiceType) user.ServiceType = ServiceType;
+        }
+
+        user.UpdatedAt = new Date();
+        await user.save();
+
+        return res.status(200).json({ success: true, message: "User updated successfully", user });
+    } catch (error) {
+        console.error("Error updating user:", error);
+        res.status(500).json({ success: false, message: "Internal server error." });
+    }
+});
+
 module.exports = router;
