@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose"); 
 const Listing = require("../models/Listings");
 
 // Get all listings
@@ -12,6 +13,25 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Get listings by id
+router.get("/id/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid listing ID" });
+    }
+    // Find the listing by ID and populate the 'ProviderID' field with 'name' and 'email'
+    const listing = await Listing.findById(id).populate('ProviderID', 'name email');
+    if (!listing) {
+      return res.status(404).json({ message: "Listing not found" });
+    }
+    // Return the listing with populated provider data
+    res.status(200).json(listing);
+  } catch (err) {
+    console.error("Error fetching listing by ID:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 // Get listings by category
 router.get("/:category", async (req, res) => {

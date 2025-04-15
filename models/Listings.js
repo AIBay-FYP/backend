@@ -23,6 +23,7 @@ const ListingSchema = new mongoose.Schema({
   MinPrice: Number,
   FixedPrice: { type: Number, default: 0 },
   RentalDays: Number,
+  Qunatity: Number,
   Currency: String,
   Documents: { type: [String], default: [] },
 });
