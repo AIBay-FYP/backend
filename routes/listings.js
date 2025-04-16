@@ -6,7 +6,7 @@ const Listing = require("../models/Listings");
 // Get all listings
 router.get("/", async (req, res) => {
   try {
-    const listings = await Listing.find();
+    const listings = await Listing.find({});
     return res.status(200).json(listings);
   } catch (error) {
     return res.status(500).json({ error: error.message });

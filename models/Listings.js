@@ -10,7 +10,12 @@ const ListingSchema = new mongoose.Schema({
   Category: String,
   Photos: [String],
   DemandScore: Number,
-  FAQs: [String],
+  FAQs: [
+    {
+      question: { type: String, required: true },
+      answer: { type: String, default: "" },
+    }
+  ],  
   ServiceType: String,
   DateCreated: Date,
   DatePosted: Date,
