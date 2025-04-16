@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const authRoutes = require('./routes/auth');
 const listings = require("./routes/listings");
+const profileRoutes = require("./routes/profile");
 
 dotenv.config();
 
@@ -18,7 +19,7 @@ app.get("/", (req, res) => {
 
 app.use("/api", authRoutes);
 app.use("/listings", listings);
-
+app.use("/profile", profileRoutes);
 
 
 mongoose.connect(process.env.MONGO_URI)
