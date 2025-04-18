@@ -1,25 +1,28 @@
 const mongoose = require("mongoose");
 
-const userSchema = new mongoose.Schema(
-  {
-    _id: { type: mongoose.Schema.Types.ObjectId, auto: true }, // MongoDB default ObjectId
-    UserID: { type: String, unique: true }, // Uxxx format
-    FirebaseUID: { type: String, required: true, unique: true },
-    Name: { type: String, required: true },
-    Email: { type: String, required: true, unique: true },
-    Location: { type: String },
-    ProfilePicture: { type: String, default: "https://www.w3schools.com/w3images/avatar2.png" },
-    ContactNumber: { type: String },
-    CNIC: { type: String, default: "-" },
-    BusinessType: { type: String, enum: ["Individual", "Company", "Storefront"] },
-    ServiceType: { type: String, enum: ["Rent", "Sale", "Both"] },
-    Interests: { type: [String], default: [] },
-    Rating: { type: Number, default: 0 },
-    RoleType: { type: String, enum: ["Admin", "Moderator", "User", "Provider"] },
-    ApprovedBy: { type: String, default: "-" },
-    CreatedAt: { type: Date, default: Date.now },
+const userSchema = new mongoose.Schema({
+  UserID: { type: String, unique: true },
+  Name: { type: String, required: true },
+  Email: { type: String, required: true, unique: true },
+  Location: { type: String, required: true },
+  ContactNumber: { type: String, required: true }, // Added as required field
+  Rating: { type: Number, default: 4.0 },
+  RoleType: { 
+    type: String, 
+    enum: ['Consumer', 'Provider','User'], 
+    default: 'User' 
   },
-  { timestamps: true } // Adds createdAt and updatedAt automatically
-);
+  ApprovedBy: { type: String, default: '-' },
+  CreatedAt: { type: Date, default: Date.now },
+  CNIC: { type: String, unique: true },
+  Interests: [String],
+  FirebaseUID: { type: String, required: true, unique: true },
+  updatedAt: Date,
+  ProfilePicture: String,
+  BusinessType: String,
+  Services: [String],
+  updatedInterests: { type: Boolean, default: false },
+});
+
 
 module.exports = mongoose.model("User", userSchema,"User");

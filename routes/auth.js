@@ -33,7 +33,6 @@ const getNextUserID = async () => {
     }
 };
 
-
 router.post("/verifyUser", async (req, res) => {
     try {
         const { token, name, email } = req.body;
@@ -42,39 +41,38 @@ router.post("/verifyUser", async (req, res) => {
             return res.status(400).json({ success: false, message: "Token is required." });
         }
 
-        // 🔹 Verify Firebase token
+        // 🔹 Verify Firebase ID token
         const decodedToken = await admin.auth().verifyIdToken(token);
         console.log("✅ Decoded Firebase Token:", decodedToken);
 
         const { uid, phone_number } = decodedToken;
 
-        // 🔹 Check if user already exists
+        // 🔹 Check if user exists in DB
         let user = await User.findOne({ Email: email });
 
         if (!user) {
-            const newUserID = await getNextUserID(); // Ensure we get a valid UserID
-            // const newUserID = "U009"; // Ensure we get a valid UserID
+            const newUserID = await getNextUserID(); // Function to get the next user ID
             console.log(`✅ Assigning UserID: ${newUserID} to new user`);
 
             user = new User({
                 UserID: newUserID,
                 FirebaseUID: uid,
-                Name: name,
-                Email: email,
+                Name: name || "Unknown User",
+                Email: email || "",
                 Location: "city",
-                ContactNumber: phone_number || null,
-                RoleType: "User", // Default role
+                ContactNumber: phone_number || "null",
+                RoleType: "User",
                 CreatedAt: new Date(),
             });
 
-            await user.save(); // Save new user
+            await user.save();
             console.log("✅ New user saved successfully");
         } else {
             console.log(`🔹 User already exists, updating details for ${email}`);
 
             user.FirebaseUID = uid;
-            user.Name = name;
-            user.ContactNumber = phone_number || null;
+            user.Name = name || user.Name;
+            user.ContactNumber = phone_number || user.ContactNumber;
             user.UpdatedAt = new Date();
             await user.save();
             console.log("✅ Existing user updated successfully");
@@ -93,25 +91,28 @@ router.post("/verifyUser", async (req, res) => {
     }
 });
 
+
+
 router.patch("/updateUser/:firebaseUID", async (req, res) => {
     try {
         const { firebaseUID } = req.params;
+        console.log(firebaseUID);
         const { role } = req.query;
-        const { Name, Email, ContactNumber, Location, CNIC, BusinessType, ServiceType, Interests, updateInterests } = req.body;
-
+        const { Name, Email, ContactNumber, Location, CNIC, BusinessType, Services, Interests, updateInterests } = req.body;
+        console.log(ContactNumber);
+        console.log(Interests);
         if (!role) {
             return res.status(400).json({ success: false, message: "Role is required as a query parameter." });
         }
 
         let user = await User.findOne({ FirebaseUID: firebaseUID });
-
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found." });
         }
 
         // Ensure role matches the existing user
-        if (role !== user.RoleType) {
-            return res.status(403).json({ success: false, message: "Unauthorized role update." });
+        if (role) {
+            user.RoleType = role;
         }
 
         // Allow basic user updates
@@ -135,7 +136,7 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
         if (role === "Provider") {
             if (CNIC) user.CNIC = CNIC;
             if (BusinessType) user.BusinessType = BusinessType;
-            if (ServiceType) user.ServiceType = ServiceType;
+            if (Services) user.Services = Services;
         }
 
         user.UpdatedAt = new Date();
@@ -147,5 +148,4 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
         res.status(500).json({ success: false, message: "Internal server error." });
     }
 });
-
 module.exports = router;
