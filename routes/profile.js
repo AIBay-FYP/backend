@@ -11,12 +11,12 @@ router.get("/consumer/:firebaseUID", async (req, res) => {
   try {
     const { firebaseUID } = req.params;
 
-    const user = await User.findOne({ FirebaseUID: firebaseUID, RoleType: "User" });
+    const user = await User.findOne({ FirebaseUID: firebaseUID, RoleType: "Consumer" });
 
     if (!user) return res.status(404).json({ message: "Consumer not found" });
 
     const orders = await Booking.find({ ConsumerID: user._id }).populate("ListingID");
-
+    console.log(orders);
     res.json({
       profile: {
         Name: user.Name,

@@ -7,6 +7,7 @@ const Listing = require("../models/Listings");
 router.get("/", async (req, res) => {
   try {
     const listings = await Listing.find({});
+    console.log("LSIITITI",listings);
     return res.status(200).json(listings);
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -25,6 +26,7 @@ router.get("/id/:id", async (req, res) => {
     if (!listing) {
       return res.status(404).json({ message: "Listing not found" });
     }
+    console.log("Listing found:", listing);
     // Return the listing with populated provider data
     res.status(200).json(listing);
   } catch (err) {
@@ -36,8 +38,12 @@ router.get("/id/:id", async (req, res) => {
 // Get listings by category
 router.get("/:category", async (req, res) => {
   try {
+    console.log("INSIDE CATEGORY")
+
       const category = decodeURIComponent(req.params.category); // Decode URL component
+      console.log(category);
       const listings = await Listing.find({ Category: category }); // Filter by category
+      console.log(listings);
       res.json(listings);
   } catch (error) {
       console.error("Error fetching listings:", error);
