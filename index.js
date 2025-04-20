@@ -7,6 +7,7 @@ const listings = require("./routes/listings");
 const profileRoutes = require("./routes/profile");
 const user = require("./routes/user");
 const topProviders = require("./routes/top_providers");
+const category = require("./routes/category");
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use("/listings", listings);
 app.use("/profile", profileRoutes);
 app.use("/user", user);
 app.use("/providers", topProviders);
+app.use("/category", category);
 
 
 mongoose.connect(process.env.MONGO_URI)

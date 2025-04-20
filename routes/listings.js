@@ -14,6 +14,23 @@ router.get("/", async (req, res) => {
   }
 });
 
+
+// get the most recent listings
+router.get("/recent", async (req, res) => {
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const recentListings = await Listing.find({
+      DatePosted: { $gte: sevenDaysAgo }
+    }).sort({ DatePosted: -1 }); // Newest first
+
+    return res.status(200).json(recentListings);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // Get listings by id
 router.get("/id/:id", async (req, res) => {
   try {

@@ -22,4 +22,31 @@ router.get('/:firebaseUID', async (req, res) => {
   });
 
 
+  router.patch('/location/:firebaseUID', async (req, res) => {
+    const { firebaseUID } = req.params;
+  
+    try {
+      const { location } = req.body;
+  
+      // Find user by FirebaseUID
+      const user = await User.findOne({ FirebaseUID: firebaseUID });
+  
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+  
+      // Update the location field and updatedAt timestamp
+      user.Location = location;
+      user.updatedAt = new Date();
+      
+      const updatedUser = await user.save();
+      console.log("UPDTED USER", updatedUser);
+      res.json({ message: 'Location updated successfully', user: updatedUser });
+    } catch (error) {
+      console.error('Error updating location:', error);
+      res.status(500).json({ message: 'Server error', error });
+    }
+  });
+
+  
   module.exports = router;
