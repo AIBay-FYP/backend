@@ -2,6 +2,7 @@ const express = require("express");
 const admin = require("../firebaseAdmin");
 const mongoose = require("mongoose");
 const User = require("../models/user");
+const Category = require("../models/Category");
 const router = express.Router();
 
 /**
@@ -149,3 +150,65 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
     }
 });
 module.exports = router;
+
+router.patch("/consumer/:firebaseUID", async (req, res) => {
+    try {
+        const { firebaseUID } = req.params;
+        const { Email, ContactNumber, Name, Interests } = req.body;
+
+        const user = await User.findOne({ FirebaseUID: firebaseUID });
+        if (!user || user.RoleType !== "User") {
+            return res.status(404).json({ success: false, message: "Consumer not found." });
+        }
+
+        if (Email) user.Email = Email;
+        if (ContactNumber) user.ContactNumber = ContactNumber;
+        if (Name) user.Name = Name;
+
+        if (Array.isArray(Interests)) {
+            const validCategories = await Category.find({}).select("name -_id").lean();
+            const validCategoryNames = validCategories.map(cat => cat.name);
+
+            const validInterests = Interests.filter(interest => validCategoryNames.includes(interest));
+            user.Interests = validInterests;
+        }
+
+        user.UpdatedAt = new Date();
+        await user.save();
+
+        return res.status(200).json({ success: true, message: "Consumer profile updated successfully", user });
+    } catch (error) {
+        console.error("Error updating consumer:", error);
+        res.status(500).json({ success: false, message: "Internal server error." });
+    }
+});
+
+router.patch("/provider/:firebaseUID", async (req, res) => {
+    try {
+        const { firebaseUID } = req.params;
+        const { Email, ContactNumber, Name, BusinessType, Services } = req.body;
+
+        const user = await User.findOne({ FirebaseUID: firebaseUID });
+        if (!user || user.RoleType !== "Provider") {
+            return res.status(404).json({ success: false, message: "Provider not found." });
+        }
+
+        if (Email) user.Email = Email;
+        if (ContactNumber) user.ContactNumber = ContactNumber;
+        if (Name) user.Name = Name;
+
+        if (BusinessType) user.BusinessType = BusinessType;        
+
+        if (Services && ["rent", "sale", "both"].includes(Services)) {
+            user.Services = Services;
+        }
+
+        user.UpdatedAt = new Date();
+        await user.save();
+
+        return res.status(200).json({ success: true, message: "Provider profile updated successfully", user });
+    } catch (error) {
+        console.error("Error updating provider:", error);
+        res.status(500).json({ success: false, message: "Internal server error." });
+    }
+});
