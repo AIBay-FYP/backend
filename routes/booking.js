@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const Booking = require("../models/booking");
+const Booking = require("../models/Booking");
 const User = require("../models/user");
-const Listing = require("../models/listings");
+const Listing = require("../models/Listings");
 const Notification = require("../models/Notification");
 
 // Helper to generate BookingID like B001, B002...
@@ -52,16 +52,18 @@ router.post("/request", async (req, res) => {
   }
 });
 
-//  Update Booking Status (approve, reject, ongoing, complete, cancel)
-router.patch("/update/:bookingID", async (req, res) => {
+router.patch("/update/:id", async (req, res) => {
   try {
-    const { bookingID } = req.params;
+    const { id } = req.params;
     const { status, escrow, cancelledBy, firebaseUID } = req.body;
 
-    const booking = await Booking.findOne({ BookingID: bookingID }).populate("ListingID").populate("ConsumerID").populate("ProviderID");
+    const booking = await Booking.findById(id)
+      .populate("ListingID")
+      .populate("ConsumerID")
+      .populate("ProviderID");
+
     if (!booking) return res.status(404).json({ success: false, message: "Booking not found." });
 
-    // Handle cancellation logic
     if (status === "Cancelled") {
       const listing = booking.ListingID;
       if (booking.Status === "Confirmed" && listing.CancellationFee > 0) {
@@ -73,12 +75,11 @@ router.patch("/update/:bookingID", async (req, res) => {
       }
     }
 
-    // Apply updates
     if (status) booking.Status = status;
     if (escrow) booking.EscrowStatus = escrow;
+    booking.updatedAt = new Date();
     await booking.save();
 
-    // Send notification based on status
     let userToNotify, message;
     if (status === "Confirmed") {
       userToNotify = booking.ConsumerID;
@@ -133,18 +134,130 @@ router.get('/user/:firebaseUID', async (req, res) => {
     }
 });
 
-router.get('/:bookingID', async (req, res) => {
-    try {
-      const { bookingID } = req.params;
-      const booking = await Booking.findOne({ BookingID: bookingID }).populate("ListingID").populate("ConsumerID").populate("ProviderID");
-  
-      if (!booking) return res.status(404).json({ message: "Booking not found" });
-  
-      res.status(200).json({ success: true, booking });
-    } catch (error) {
-      console.error("Get booking detail error:", error);
-      res.status(500).json({ message: "Server error", error });
+// Get a single booking by MongoDB _id
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if id is a valid MongoDB ObjectId
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: "Invalid Booking ID format" });
     }
+
+    const booking = await Booking.findById(id)
+      .populate("ListingID")
+      .populate("ConsumerID")
+      .populate("ProviderID");
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    res.status(200).json({ success: true, booking });
+  } catch (error) {
+    console.error("Get booking detail error:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
 });    
+
+// Cancel Booking (by Consumer)
+router.patch("/cancel/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const booking = await Booking.findById(id).populate("ListingID");
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    if (booking.Status === "Cancelled" || booking.Status === "Completed") {
+      return res.status(400).json({ message: "Booking cannot be cancelled at this stage." });
+    }
+
+    let cancellationFee = 0;
+
+    if (booking.Status === "Approved") {
+      cancellationFee = booking.ListingID.CancellationFee || 0;
+      // In real payment logic, deduct cancellation fee from consumer or withhold escrow
+    }
+
+    booking.Status = "Cancelled";
+    booking.EscrowStatus = "Released";
+    booking.DateCancelled = new Date();
+    booking.updatedAt = new Date();
+    await booking.save();
+
+    // Add notification (you already set this up)
+    await new Notification({
+      NotificationID: `N-${Date.now()}`,
+      UserID: booking.ProviderID,
+      Message: `Booking ${booking._id} has been cancelled.`,
+      Type: "Alert",
+      ReadStatus: false,
+      Timestamp: new Date()
+    }).save();
+
+    res.status(200).json({
+      message: `Booking cancelled. Cancellation fee: ${cancellationFee}`,
+      cancellationFee,
+      booking
+    });
+  } catch (error) {
+    console.error("Cancel booking error:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// PATCH Mark Booking as Complete (by Consumer or Provider)
+router.patch("/complete/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firebaseUID } = req.body;
+
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const booking = await Booking.findById(id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    if (user._id.equals(booking.ConsumerID)) {
+      booking.ConsumerCompleted = true;
+    } else if (user._id.equals(booking.ProviderID)) {
+      booking.ProviderCompleted = true;
+    } else {
+      return res.status(403).json({ message: "You are not part of this booking." });
+    }
+
+    if (booking.ConsumerCompleted && booking.ProviderCompleted) {
+      booking.Status = "Completed";
+      booking.EscrowStatus = "Completed";
+      booking.DateCompleted = new Date();
+
+      // Notify both parties
+      await new Notification({
+        NotificationID: `N-${Date.now()}`,
+        UserID: booking.ConsumerID,
+        Message: `Booking ${booking._id} is marked as completed.`,
+        Type: "Info",
+        ReadStatus: false,
+        Timestamp: new Date()
+      }).save();
+
+      await new Notification({
+        NotificationID: `N-${Date.now() + 1}`,
+        UserID: booking.ProviderID,
+        Message: `Booking ${booking._id} is marked as completed.`,
+        Type: "Info",
+        ReadStatus: false,
+        Timestamp: new Date()
+      }).save();
+    }
+
+    await booking.save();
+
+    res.status(200).json({ message: "Booking status updated", booking });
+  } catch (error) {
+    console.error("Complete booking error:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
 
 module.exports = router;
