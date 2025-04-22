@@ -15,22 +15,60 @@ const generateBookingID = async () => {
 router.post("/request", async (req, res) => {
   try {
     const { firebaseUID, ListingID, StartDate, EndDate, Price } = req.body;
+    console.log("Requesting booking with data:", req.body);
+    // Validate required fields
+    if (!firebaseUID || !ListingID || !StartDate || !EndDate || !Price) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields (firebaseUID, ListingID, StartDate, EndDate, Price)."
+      });
+    }
+
+    const startDateObj = new Date(StartDate);
+    const endDateObj = new Date(EndDate);
+
+    // Check if valid dates
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date format for StartDate or EndDate."
+      });
+    }
+
+    // Ensure StartDate is before EndDate
+    if (startDateObj >= endDateObj) {
+      return res.status(400).json({
+        success: false,
+        message: "StartDate must be earlier than EndDate."
+      });
+    }
+
+    // Find consumer
     const consumer = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!consumer) {
+      return res.status(404).json({ success: false, message: "Consumer not found." });
+    }
 
-    if (!consumer) return res.status(404).json({ success: false, message: "Consumer not found." });
-
+    // Find listing
     const listing = await Listing.findById(ListingID);
-    if (!listing) return res.status(404).json({ success: false, message: "Listing not found." });
+    if (!listing) {
+      return res.status(404).json({ success: false, message: "Listing not found." });
+    }
 
+    // Find provider
     const provider = await User.findById(listing.ProviderID);
+    if (!provider) {
+      return res.status(404).json({ success: false, message: "Provider not found." });
+    }
 
+    // Create booking
     const booking = new Booking({
       BookingID: await generateBookingID(),
       ConsumerID: consumer._id,
       ProviderID: provider._id,
       ListingID,
-      StartDate,
-      EndDate,
+      StartDate: startDateObj,
+      EndDate: endDateObj,
       Price,
     });
 
@@ -45,10 +83,18 @@ router.post("/request", async (req, res) => {
     });
     await notification.save();
 
-    res.status(201).json({ success: true, message: "Booking requested", booking });
+    return res.status(201).json({
+      success: true,
+      message: "Booking requested successfully.",
+      booking,
+    });
   } catch (error) {
     console.error("Booking error:", error);
-    res.status(500).json({ success: false, message: "Server error", error });
+    return res.status(500).json({
+      success: false,
+      message: "An unexpected server error occurred.",
+      error: error.message || error,
+    });
   }
 });
 

@@ -157,7 +157,7 @@ router.patch("/consumer/:firebaseUID", async (req, res) => {
         const { Email, ContactNumber, Name, Interests } = req.body;
 
         const user = await User.findOne({ FirebaseUID: firebaseUID });
-        if (!user || user.RoleType !== "User") {
+        if (!user || user.RoleType !== "Consumer") {
             return res.status(404).json({ success: false, message: "Consumer not found." });
         }
 
