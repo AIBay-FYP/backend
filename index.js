@@ -9,6 +9,7 @@ const user = require("./routes/user");
 const topProviders = require("./routes/top_providers");
 const category = require("./routes/category");
 const booking = require("./routes/booking");
+const purchase = require("./routes/purchase")
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use("/user", user);
 app.use("/providers", topProviders);
 app.use("/category", category);
 app.use("/booking", booking);
+app.use("/purchase", purchase);
 
 
 mongoose.connect(process.env.MONGO_URI)

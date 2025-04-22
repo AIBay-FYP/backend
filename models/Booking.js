@@ -4,7 +4,7 @@ const bookingSchema = new mongoose.Schema({
   BookingID: { type: String, required: true, unique: true },
 
   ConsumerID: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  // ProviderID: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  ProviderID: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   ListingID: { type: mongoose.Schema.Types.ObjectId, ref: "Listings", required: true },
 
   StartDate: { type: Date, required: true },
