@@ -55,17 +55,34 @@ router.post("/verifyUser", async (req, res) => {
             const newUserID = await getNextUserID(); // Function to get the next user ID
             console.log(`✅ Assigning UserID: ${newUserID} to new user`);
 
-            user = new User({
-                UserID: newUserID,
-                FirebaseUID: uid,
-                Name: name || "Unknown User",
-                Email: email || "",
-                Location: "city",
-                ContactNumber: phone_number || "null",
+            // user = new User({
+            //     UserID: newUserID,
+            //     FirebaseUID: uid,
+            //     Name: name || "Unknown User",
+            //     Email: email || "",
+            //     Location: "city",
+            //     ContactNumber: phone_number || "null",
+            //     RoleType: "User",
+            //     CreatedAt: new Date(),
+            // });
+            const user = new User({
+                UserID: newUserID, // ✅ Required (Unique)
+                FirebaseUID: uid,  // ✅ Required (Unique)
+                Name: name || "Unknown User", // ✅ Required
+                Email: email || `user_${Date.now()}@example.com`, // ✅ Required (Unique) - fallback to a dummy email
+                Location: "city", // ✅ Required
+                ContactNumber: phone_number || "00000000000", // ✅ Required
+                CNIC: `cnic_${Date.now()}`, // ✅ Unique - give fallback to avoid schema error
                 RoleType: "User",
                 CreatedAt: new Date(),
-            });
-
+                Rating: 4.0, // default already in schema, but can be explicitly set if needed
+                ApprovedBy: "-", // default
+                Interests: [], // Optional - initialize as empty
+                updatedAt: new Date(),
+                updatedInterests: false,
+                Services: [],
+              });
+              
             await user.save();
             console.log("✅ New user saved successfully");
         } else {

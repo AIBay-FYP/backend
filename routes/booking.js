@@ -166,19 +166,75 @@ router.get('/user/:firebaseUID', async (req, res) => {
     try {
       const { firebaseUID } = req.params;
       const user = await User.findOne({ FirebaseUID: firebaseUID });
-  
+      let bookings = [];
       if (!user) return res.status(404).json({ message: "User not found" });
-  
-      const bookings = await Booking.find({
-        $or: [{ ConsumerID: user._id }, { ProviderID: user._id }]
-      }).populate("ListingID").sort({ DateCreated: -1 });
-  
+      
+      if(user.RoleType === "Provider") {
+        const listings = await Listing.find({ ProviderID: user._id });
+        if (!listings || listings.length === 0) {
+          return res.status(404).json({ message: "No listings found for this provider." });
+        }
+        bookings = await Booking.find({ ListingID: { $in: listings.map(listing => listing._id) } })
+          .populate("ConsumerID")
+          .populate("ProviderID")
+          .sort({ DateCreated: -1 });
+      }
+      else{
+        
+              bookings = await Booking.find({
+                $or: [{ ConsumerID: user._id }]
+              }).populate("ListingID").sort({ DateCreated: -1 });
+          
+
+      }
+
       res.status(200).json({ success: true, bookings });
     } catch (error) {
       console.error("Fetch bookings error:", error);
       res.status(500).json({ message: "Server error", error });
     }
 });
+
+router.get('/userAll/:firebaseUID', async (req, res) => {
+  try {
+    const { firebaseUID } = req.params;
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    let bookings = [];
+
+    if (user.RoleType === "Provider") {
+      // Get all listings created by this provider
+      const listings = await Listing.find({ ProviderID: user._id });
+      if (!listings || listings.length === 0) {
+        return res.status(404).json({ message: "No listings found for this provider." });
+      }
+
+      // Get all bookings for these listings
+      bookings = await Booking.find({ ListingID: { $in: listings.map(l => l._id) } })
+        .populate("ListingID")       // Include Listing details
+        .populate("ConsumerID")      // Include Consumer user details
+        .populate("ProviderID")      // Include Provider user details
+        .sort({ DateCreated: -1 });
+
+    } else {
+      // Consumer bookings
+      bookings = await Booking.find({ ConsumerID: user._id })
+        .populate("ListingID")       // Include Listing details
+        .populate("ConsumerID")      // Include Consumer user details
+        .populate("ProviderID")      // Include Provider user details
+        .sort({ DateCreated: -1 });
+    }
+
+    res.status(200).json({ success: true, bookings });
+
+  } catch (error) {
+    console.error("Fetch enriched bookings error:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+
 
 // Get a single booking by MongoDB _id
 router.get('/:id', async (req, res) => {
