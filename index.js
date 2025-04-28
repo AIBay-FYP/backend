@@ -20,6 +20,7 @@ app.get("/", (req, res) => {
 app.use("/api", authRoutes);
 app.use("/listings", listings);
 app.use("/profile", profileRoutes);
+app.use("/cart", cartRoutes);
 
 
 mongoose.connect(process.env.MONGO_URI)
