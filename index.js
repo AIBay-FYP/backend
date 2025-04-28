@@ -5,6 +5,9 @@ const cors = require("cors");
 const authRoutes = require('./routes/auth');
 const listings = require("./routes/listings");
 const profileRoutes = require("./routes/profile");
+const user = require("./routes/user");
+const topProviders = require("./routes/top_providers");
+const category = require("./routes/category");
 
 dotenv.config();
 
@@ -20,6 +23,9 @@ app.get("/", (req, res) => {
 app.use("/api", authRoutes);
 app.use("/listings", listings);
 app.use("/profile", profileRoutes);
+app.use("/user", user);
+app.use("/providers", topProviders);
+app.use("/category", category);
 app.use("/cart", cartRoutes);
 
 
@@ -28,5 +34,5 @@ mongoose.connect(process.env.MONGO_URI)
 .catch((err) => console.error("MongoDB connection error:", err));
 
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT,'0.0.0.0', () => console.log(`Server running on port ${PORT}`));
