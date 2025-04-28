@@ -11,6 +11,7 @@ const category = require("./routes/category");
 const booking = require("./routes/booking");
 const purchase = require("./routes/purchase")
 const notification = require("./routes/notification")
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.get("/", (req, res) => {
     res.send("API is running...");
 });
 
+app.use('/dashboard', dashboardRoutes);
 app.use("/api", authRoutes);
 app.use("/listings", listings);
 app.use("/profile", profileRoutes);
