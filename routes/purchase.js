@@ -6,6 +6,8 @@ const Purchase = require("../models/Purchase");
 const Notification = require("../models/Notification");
 const Cart = require("../models/Cart")
 
+const { updateDemandScore } = require("../utils/demandScore");
+
 router.post("/now", async (req, res) => {
   try {
     const { firebaseUID, listingID } = req.body;
@@ -45,6 +47,9 @@ router.post("/now", async (req, res) => {
     });
 
     await newPurchase.save();
+
+     // Update demand score for the listing
+     await updateDemandScore(listingID, "bookingRequest");
 
     // Notify the provider
     await new Notification({
@@ -106,6 +111,10 @@ router.post("/checkout", async (req, res) => {
   
         await newPurchase.save();
         purchases.push(newPurchase);
+
+        
+       // Update demand score for the listing
+      await updateDemandScore(listingID, "completedBooking");
   
         // 5. Notify provider
         await new Notification({
