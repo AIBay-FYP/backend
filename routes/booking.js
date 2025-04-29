@@ -291,7 +291,7 @@ router.patch("/cancel/:id", async (req, res) => {
     await new Notification({
       NotificationID: `N-${Date.now()}`,
       UserID: booking.ProviderID,
-      Message: `Booking ${booking._id} has been cancelled.`,
+      Message: `Booking for your service ${booking.ListingID.Title} has been cancelled.`,
       Type: "Alert",
       ReadStatus: false,
       Timestamp: new Date()
@@ -359,6 +359,84 @@ router.patch("/complete/:id", async (req, res) => {
   } catch (error) {
     console.error("Complete booking error:", error);
     res.status(500).json({ message: "Server error", error });
+  }
+});
+
+
+router.patch("/confirm/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firebaseUID } = req.body;
+
+    console.log('Received firebaseUID:', firebaseUID);
+
+
+    // Validate booking ID format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ success: false, message: "Invalid Booking ID format" });
+    }
+
+    // Find the booking and populate related data
+    const booking = await Booking.findById(id)
+      .populate("ListingID")
+      .populate("ConsumerID")
+      .populate("ProviderID");
+
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    // Verify user exists
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Verify user is the provider
+    if (!user._id.equals(booking.ProviderID._id)) {
+      return res.status(403).json({ success: false, message: "Only the provider can confirm this booking" });
+    }
+
+    // Check if booking is in a valid state to be confirmed
+    if (booking.Status !== "Pending") {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Booking cannot be confirmed. Current status: ${booking.Status}`
+      });
+    }
+
+    // Update booking status
+    booking.Status = "Confirmed";
+    booking.EscrowStatus = "Pending";
+    booking.updatedAt = new Date();
+
+    await booking.save();
+
+    // Create notification for consumer
+    const notification = new Notification({
+      NotificationID: `N${Date.now()}`,
+      UserID: booking.ConsumerID._id,
+      Message: `Your booking for "${booking.ListingID.Title}" has been confirmed by the provider.`,
+      Type: "Booking",
+      ReadStatus: false,
+      Timestamp: new Date()
+    });
+
+    await notification.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Booking confirmed successfully",
+      booking
+    });
+
+  } catch (error) {
+    console.error("Confirm booking error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    });
   }
 });
 

@@ -29,7 +29,7 @@ const ListingSchema = new mongoose.Schema({
   FixedPrice: { type: Number, default: 0 },
   RentalDays: Number,
   Qunatity: Number,
-  Currency: String,
+  Currency: {type:String,default: 'PKR'},
   Documents: { type: [String], default: [] },
 });
 
