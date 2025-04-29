@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose"); 
 const Listing = require("../models/Listings");
+const { updateDemandScore } = require("../utils/demandScore");
 
 // Get all listings
 router.get("/", async (req, res) => {
@@ -44,7 +45,8 @@ router.get("/id/:id", async (req, res) => {
       return res.status(404).json({ message: "Listing not found" });
     }
     console.log("Listing found:", listing);
-    // Return the listing with populated provider data
+    await updateDemandScore(id, "view"); // Update demand score on view
+
     res.status(200).json(listing);
   } catch (err) {
     console.error("Error fetching listing by ID:", err);
@@ -81,7 +83,7 @@ router.get("/:category", async (req, res) => {
         { title: { $regex: query, $options: "i" } }, // Case-insensitive title search
         { description: { $regex: query, $options: "i" } }, // Case-insensitive description search
         { keywords: { $in: query.split(" ") } }, // Matches any keyword in the array
-      ];
+      ].sort({ DemandScore: -1 });;
     }
 
     // Filter by category

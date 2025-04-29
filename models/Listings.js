@@ -9,7 +9,7 @@ const ListingSchema = new mongoose.Schema({
   Availability: Boolean,
   Category: String,
   Photos: [String],
-  DemandScore: Number,
+  DemandScore: { type: Number, default: 0 },
   FAQs: [
     {
       question: { type: String, required: true },

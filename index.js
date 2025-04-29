@@ -11,6 +11,7 @@ const category = require("./routes/category");
 const booking = require("./routes/booking");
 const purchase = require("./routes/purchase")
 const notification = require("./routes/notification")
+const dashboardRoutes = require('./routes/provider_dashboard');
 const favorites = require("./routes/favorites")
 
 dotenv.config();
@@ -33,6 +34,7 @@ app.use("/category", category);
 app.use("/booking", booking);
 app.use("/purchase", purchase);
 app.use("/notifications", notification);
+app.use("/dashboard", dashboardRoutes);
 app.use("/favorites", favorites);
 
 
