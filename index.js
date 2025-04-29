@@ -11,7 +11,7 @@ const category = require("./routes/category");
 const booking = require("./routes/booking");
 const purchase = require("./routes/purchase")
 const notification = require("./routes/notification")
-const dashboardRoutes = require('./routes/provider_dashboard');
+const dashboardRoutes = require("./routes/provider_dashboard");
 
 dotenv.config();
 
