@@ -13,6 +13,7 @@ const booking = require("./routes/booking");
 const purchase = require("./routes/purchase")
 const notification = require("./routes/notification")
 const dashboardRoutes = require("./routes/provider_dashboard");
+const provider_tabs = require("./routes/provider_tabs")
 
 dotenv.config();
 
@@ -36,6 +37,8 @@ app.use("/booking", booking);
 app.use("/purchase", purchase);
 app.use("/notifications", notification);
 app.use("/dashboard", dashboardRoutes);
+app.use("/provider", provider_tabs);
+
 
 
 mongoose.connect(process.env.MONGO_URI)
