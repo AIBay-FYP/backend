@@ -5,6 +5,8 @@ const User = require("../models/user");
 const Listing = require("../models/Listings");
 const Notification = require("../models/Notification");
 
+const { updateDemandScore } = require("../utils/demandScore");
+
 // Helper to generate BookingID like B001, B002...
 const generateBookingID = async () => {
   const count = await Booking.countDocuments();
@@ -73,6 +75,9 @@ router.post("/request", async (req, res) => {
     });
 
     await booking.save();
+
+     // Update demand score for the listing
+    await updateDemandScore(ListingID, "bookingRequest");
 
     // Notify provider
     const notification = new Notification({
@@ -352,6 +357,10 @@ router.patch("/complete/:id", async (req, res) => {
         Timestamp: new Date()
       }).save();
     }
+
+    
+    // Update demand score for the listing
+    await updateDemandScore(listingID, "completedBooking");
 
     await booking.save();
 
