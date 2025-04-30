@@ -271,7 +271,9 @@ router.post("/cart/add", async (req, res) => {
 router.get("/cart/items", async (req, res) => {
   try {
     const { firebaseUID } = req.query;
+    console.log("Query params:", req.query);
 
+    console.log("Firebase UID:", firebaseUID);
     if (!firebaseUID) {
       return res.status(400).json({ message: "Missing firebaseUID" });
     }
@@ -293,34 +295,48 @@ router.get("/cart/items", async (req, res) => {
 router.delete("/cart/remove", async (req, res) => {
   try {
     const { firebaseUID, listingID } = req.body;
+    console.log("Remove from cart request:", { firebaseUID, listingID });
 
     if (!firebaseUID || !listingID) {
+      console.log("Missing required fields:", { firebaseUID, listingID });
       return res.status(400).json({ message: "Missing firebaseUID or listingID" });
     }
 
     const user = await User.findOne({ FirebaseUID: firebaseUID });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      console.log("User not found for firebaseUID:", firebaseUID);
+      return res.status(404).json({ message: "User not found" });
+    }
+    console.log("User found:", user._id);
 
     const cart = await Cart.findOne({ ConsumerID: user._id });
-    if (!cart) return res.status(404).json({ message: "Cart not found" });
+    if (!cart) {
+      console.log("Cart not found for user:", user._id);
+      return res.status(404).json({ message: "Cart not found" });
+    }
+    console.log("Cart found:", cart._id, "Items:", cart.Items.map(item => item.ListingID.toString()));
 
     const initialLength = cart.Items.length;
     cart.Items = cart.Items.filter(item => item.ListingID.toString() !== listingID);
 
     if (cart.Items.length === initialLength) {
+      console.log("Item not found in cart:", listingID);
       return res.status(404).json({ message: "Item not found in cart" });
     }
 
     cart.LastUpdated = new Date();
     await cart.save();
+    console.log("Cart updated successfully:", {
+      cartID: cart._id,
+      items: cart.Items.map(item => item.ListingID.toString()),
+    });
 
     res.status(200).json({ message: "Item removed from cart", cart });
   } catch (error) {
     console.error("Remove from cart error:", error);
-    res.status(500).json({ message: "Server error", error });
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 });
-
 
 
 router.patch("/complete-provider", async (req, res) => {

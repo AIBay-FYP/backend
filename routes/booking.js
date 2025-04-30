@@ -4,6 +4,7 @@ const Booking = require("../models/Booking");
 const User = require("../models/user");
 const Listing = require("../models/Listings");
 const Notification = require("../models/Notification");
+const sendNotification = require("../utils/sendNotification")
 
 const { updateDemandScore } = require("../utils/demandScore");
 
@@ -78,6 +79,13 @@ router.post("/request", async (req, res) => {
 
      // Update demand score for the listing
     await updateDemandScore(ListingID, "bookingRequest");
+
+    await sendNotification(
+      provider.fcm_token,
+      "Rental Service Request",
+      `${consumer.Name} requested a booking for "${listing.Title}".`,
+      { type: "bookingRequest", bookingId: booking._id.toString() }
+    );
 
     // Notify provider
     const notification = new Notification({

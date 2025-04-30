@@ -13,7 +13,7 @@ const cartSchema = new mongoose.Schema({
   ConsumerID: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   Items: [itemSchema],
   LastUpdated: { type: Date, default: Date.now }
-}, { timestamps: true });
+}, { timestamps: true, collection: "Cart" });
 
 
 module.exports = mongoose.model("Cart", cartSchema);

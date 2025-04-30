@@ -292,22 +292,24 @@ const Listing = require('../models/Listings');
 const Purchase = require('../models/Purchase');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
+const User = require('../models/user');
 
 // Endpoint to fetch user dashboard data
 router.post('/', async (req, res) => {
   try {
     const { userId } = req.body;
-
+    const user = await User.findOne({ FirebaseUID: userId });
+    
     if (!userId) {
       return res.status(400).json({ message: 'User ID is required' });
     }
 
     // 1. Total Products
-    const totalProducts = await Listing.countDocuments({ ProviderID: userId });
+    const totalProducts = await Listing.countDocuments({ ProviderID: user._id });
 
     // 2. Total Sales
     const totalSales = await Purchase.countDocuments({
-      ProviderID: userId,
+      ProviderID: user._id,
       Status: "Completed",
       EscrowStatus: { $in: ["Released", "Completed"] }
     });
@@ -316,7 +318,7 @@ router.post('/', async (req, res) => {
     const salesEarningsResult = await Purchase.aggregate([
       {
         $match: {
-          ProviderID: userId,
+          ProviderID: user._id,
           Status: "Completed",
           EscrowStatus: { $in: ["Released", "Completed"] }
         }
@@ -331,7 +333,7 @@ router.post('/', async (req, res) => {
     const totalSalesAmount = salesEarningsResult[0]?.totalSalesAmount || 0;
 
     // 3. Total Rents
-    const rentalListings = await Listing.find({ ProviderID: userId, ServiceType: "Rental" }).select('_id');
+    const rentalListings = await Listing.find({ ProviderID: user._id, ServiceType: "Rental" }).select('_id');
     const rentalListingIds = rentalListings.map(listing => listing._id);
 
     const relatedBookings = await Booking.find({
@@ -371,7 +373,7 @@ router.post('/', async (req, res) => {
     const monthlySalesEarnings = await Purchase.aggregate([
       {
         $match: {
-          ProviderID: userId,
+          ProviderID: user._id,
           Status: "Completed",
           EscrowStatus: { $in: ["Released", "Completed"] }
         }
@@ -472,7 +474,7 @@ router.post('/', async (req, res) => {
     const bookedDatesResult = await Booking.aggregate([
       {
         $match: {
-          ProviderID: userId,
+          ProviderID: user._id,
           Status: "Confirmed"
         }
       },
