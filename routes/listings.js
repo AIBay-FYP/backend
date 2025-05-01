@@ -3,12 +3,12 @@
 // const mongoose = require("mongoose"); 
 // const Listing = require("../models/Listings");
 // const { updateDemandScore } = require("../utils/demandScore");
-// const User = require("../models/user");
+const User = require("../models/user");
 
-// const generateListingID = async () => {
-//   const count = await Listing.countDocuments();
-//   return `L${(count + 1).toString().padStart(3, "0")}`;
-// };
+const generateListingID = async () => {
+  const count = await Listing.countDocuments();
+  return `L${(count + 1).toString().padStart(3, "0")}`;
+};
 
 
 // // Get all listings
@@ -416,11 +416,16 @@ router.post("/", async (req, res) => {
       RentalDays,
       Currency,
       Documents,
+      Quantity,
     } = req.body;
 
+    const ListingID = await generateListingID();
+
     // Create new listing with ComplianceStatus set to 'Under Review'
+    const user = await User.findOne({ FirebaseUID: ProviderID });
     let newListing = new Listing({
-      ProviderID,
+      ProviderID: user._id,
+      ListingID,
       Title,
       Description,
       IsNegotiable,
@@ -444,6 +449,7 @@ router.post("/", async (req, res) => {
       RentalDays,
       Currency,
       Documents,
+      Quantity,
       
     });
 
