@@ -3,6 +3,13 @@ const router = express.Router();
 const mongoose = require("mongoose"); 
 const Listing = require("../models/Listings");
 const { updateDemandScore } = require("../utils/demandScore");
+const User = require("../models/user");
+
+const generateListingID = async () => {
+  const count = await Listing.countDocuments();
+  return `L${(count + 1).toString().padStart(3, "0")}`;
+};
+
 
 // Get all listings
 router.get("/", async (req, res) => {
@@ -155,8 +162,13 @@ router.post("/", async (req, res) => {
       Documents,
     } = req.body;
 
+
+    const ListingID = await generateListingID();
+
+    const user = await User.findOne({ FirebaseUID: ProviderID });
     let newListing = new Listing({
-      ProviderID,
+      ProviderID: user._id,
+      ListingID,
       Title,
       Description,
       IsNegotiable,
@@ -182,6 +194,7 @@ router.post("/", async (req, res) => {
       Documents,
     });
 
+    console.log("New Listing:", newListing);
     await newListing.save();
     return res.status(201).json({ message: "Listing created successfully!", listing: newListing });
   } catch (error) {

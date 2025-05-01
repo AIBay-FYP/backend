@@ -4,7 +4,9 @@ const User = require("../models/user");
 const Listing = require("../models/Listings");
 const Purchase = require("../models/Purchase");
 const Notification = require("../models/Notification");
-const Cart = require("../models/Cart")
+const Cart = require("../models/Cart");
+const { default: mongoose } = require("mongoose");
+
 
 const { updateDemandScore } = require("../utils/demandScore");
 
@@ -12,25 +14,39 @@ router.post("/now", async (req, res) => {
   try {
     const { firebaseUID, listingID } = req.body;
 
-    // Validate inputs
     if (!firebaseUID || !listingID) {
       return res.status(400).json({ message: "Missing firebaseUID or listingID" });
     }
 
-    // Find user
     const user = await User.findOne({ FirebaseUID: firebaseUID });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Find listing
     const listing = await Listing.findById(listingID);
     if (!listing) return res.status(404).json({ message: "Listing not found" });
 
-    // Ensure it's a for-sale service (not rental)
     if (listing.ServiceType !== "Sale") {
       return res.status(400).json({ message: "This listing is not available for sale." });
     }
 
-    // Create new purchase
+    // Step 1: Add to Cart (if not already added)
+    let cart = await Cart.findOne({ ConsumerID: user._id });
+    if (!cart) {
+      cart = new Cart({ ConsumerID: user._id, Items: [] });
+    }
+
+    const alreadyInCart = cart.Items.some(item => item.ListingID.toString() === listingID);
+    if (!alreadyInCart) {
+      cart.Items.push({
+        ListingID: listing._id,
+        ProviderID: listing.ProviderID,
+        Price: listing.FixedPrice,
+        Currency: listing.Currency || "PKR"
+      });
+      cart.LastUpdated = new Date();
+      await cart.save();
+    }
+
+    // Step 2: Proceed to create the purchase instantly
     const purchaseID = `P-${Date.now()}`;
     const newPurchase = new Purchase({
       PurchaseID: purchaseID,
@@ -61,12 +77,16 @@ router.post("/now", async (req, res) => {
       Timestamp: new Date()
     }).save();
 
-    res.status(201).json({ message: "Purchase created successfully", purchase: newPurchase });
+    res.status(201).json({
+      message: "Purchase created successfully and added to cart (if not already present)",
+      purchase: newPurchase
+    });
   } catch (error) {
     console.error("Instant purchase error:", error);
     res.status(500).json({ message: "Server error", error });
   }
 });
+
 
 router.post("/checkout", async (req, res) => {
     try {
@@ -142,6 +162,182 @@ router.post("/checkout", async (req, res) => {
       res.status(500).json({ message: "Server error", error });
     }
 });
+
+router.post("/cart/add", async (req, res) => {
+  try {
+    const { firebaseUID, listingID } = req.body;
+    console.log("Request body:", { firebaseUID, listingID });
+
+    // Validate inputs
+    if (!firebaseUID || !listingID) {
+      return res.status(400).json({ message: "Missing firebaseUID or listingID" });
+    }
+
+    // Validate listingID is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(listingID)) {
+      console.log("Invalid listingID format:", listingID);
+      return res.status(400).json({ message: "Invalid listingID format" });
+    }
+
+    // Find the user
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) {
+      console.log("User not found for firebaseUID:", firebaseUID);
+      return res.status(404).json({ message: "User not found" });
+    }
+    console.log("User found:", user._id);
+
+    // Find the listing
+    const listing = await Listing.findById(listingID);
+    if (!listing) {
+      console.log("Listing not found for listingID:", listingID);
+      return res.status(404).json({ message: "Listing not found" });
+    }
+    console.log("Listing found:", listing._id);
+
+    if (listing.ServiceType !== "Sale") {
+      console.log("Listing is not for sale:", listing.ServiceType);
+      return res.status(400).json({ message: "This listing is not available for sale" });
+    }
+
+    // Find or create cart
+    let cart = await Cart.findOne({ ConsumerID: user._id });
+    if (!cart) {
+      cart = new Cart({ ConsumerID: user._id, Items: [] });
+      console.log("New cart created for user:", user._id);
+    } else {
+      console.log("Existing cart found:", cart._id, "Items:", cart.Items);
+    }
+
+    // Log the current cart items for debugging
+    console.log("Current cart items:", cart.Items.map(item => ({
+      ListingID: item.ListingID.toString(),
+      ProviderID: item.ProviderID?.toString(),
+      Price: item.Price,
+      Currency: item.Currency,
+    })));
+
+    // Check if the item is already in the cart
+    const alreadyInCart = cart.Items.some(
+      (item) => item.ListingID.toString() === listingID
+    );
+    console.log("Item already in cart:", alreadyInCart, "Comparing listingID:", listingID);
+
+    if (alreadyInCart) {
+      console.log("Item already exists in cart, skipping add:", listingID);
+      return res.status(400).json({ message: "Item is already in the cart" });
+    }
+
+    // Add item to cart
+    const newItem = {
+      ListingID: listing._id,
+      ProviderID: listing.ProviderID,
+      Price: listing.FixedPrice,
+      Currency: listing.Currency || "PKR",
+    };
+    cart.Items.push(newItem);
+    cart.LastUpdated = new Date();
+    console.log("New item to be added:", newItem);
+
+    // Save cart and handle potential errors
+    try {
+      await cart.save();
+      console.log("Cart saved successfully:", {
+        cartID: cart._id,
+        items: cart.Items.map(item => item.ListingID.toString()),
+      });
+    } catch (saveError) {
+      console.error("Error saving cart:", saveError);
+      return res.status(500).json({ message: "Failed to save cart", error: saveError.message });
+    }
+
+    // Verify the cart in the database
+    const updatedCart = await Cart.findOne({ ConsumerID: user._id });
+    console.log("Cart in database after save:", {
+      cartID: updatedCart._id,
+      items: updatedCart.Items.map(item => item.ListingID.toString()),
+    });
+
+    res.status(201).json({
+      message: "Item added to cart",
+      cart: updatedCart,
+    });
+  } catch (error) {
+    console.error("Add to cart error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+router.get("/cart/items", async (req, res) => {
+  try {
+    const { firebaseUID } = req.query;
+    console.log("Query params:", req.query);
+
+    console.log("Firebase UID:", firebaseUID);
+    if (!firebaseUID) {
+      return res.status(400).json({ message: "Missing firebaseUID" });
+    }
+
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const cart = await Cart.findOne({ ConsumerID: user._id }).populate("Items.ListingID");
+    if (!cart) return res.status(200).json({ message: "Cart is empty", items: [] });
+
+    res.status(200).json({ items: cart.Items });
+  } catch (error) {
+    console.error("Fetch cart items error:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+
+router.delete("/cart/remove", async (req, res) => {
+  try {
+    const { firebaseUID, listingID } = req.body;
+    console.log("Remove from cart request:", { firebaseUID, listingID });
+
+    if (!firebaseUID || !listingID) {
+      console.log("Missing required fields:", { firebaseUID, listingID });
+      return res.status(400).json({ message: "Missing firebaseUID or listingID" });
+    }
+
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) {
+      console.log("User not found for firebaseUID:", firebaseUID);
+      return res.status(404).json({ message: "User not found" });
+    }
+    console.log("User found:", user._id);
+
+    const cart = await Cart.findOne({ ConsumerID: user._id });
+    if (!cart) {
+      console.log("Cart not found for user:", user._id);
+      return res.status(404).json({ message: "Cart not found" });
+    }
+    console.log("Cart found:", cart._id, "Items:", cart.Items.map(item => item.ListingID.toString()));
+
+    const initialLength = cart.Items.length;
+    cart.Items = cart.Items.filter(item => item.ListingID.toString() !== listingID);
+
+    if (cart.Items.length === initialLength) {
+      console.log("Item not found in cart:", listingID);
+      return res.status(404).json({ message: "Item not found in cart" });
+    }
+
+    cart.LastUpdated = new Date();
+    await cart.save();
+    console.log("Cart updated successfully:", {
+      cartID: cart._id,
+      items: cart.Items.map(item => item.ListingID.toString()),
+    });
+
+    res.status(200).json({ message: "Item removed from cart", cart });
+  } catch (error) {
+    console.error("Remove from cart error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
 
 router.patch("/complete-provider", async (req, res) => {
     try {

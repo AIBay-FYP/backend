@@ -520,6 +520,7 @@ const Purchase = require('../models/Purchase');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 
+
 // Endpoint to fetch user dashboard data
 router.post('/', async (req, res) => {
   try {

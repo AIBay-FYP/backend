@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
   BusinessType: String,
   Services: [String],
   updatedInterests: { type: Boolean, default: false },
+  fcm_token: { type: String, required: false }  // This field is optional, but you can make it required based on your app logic
 });
 
-
-module.exports = mongoose.model("User", userSchema,"User");
+module.exports = mongoose.model("User", userSchema, "User");

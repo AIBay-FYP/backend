@@ -36,10 +36,10 @@ const getNextUserID = async () => {
 
 router.post("/verifyUser", async (req, res) => {
     try {
-        const { token, name, email } = req.body;
+        const { token, name, email, fcm_token } = req.body;  // Include fcm_token in the request body
 
-        if (!token) {
-            return res.status(400).json({ success: false, message: "Token is required." });
+        if (!token || !fcm_token) {
+            return res.status(400).json({ success: false, message: "Token and FCM Token are required." });
         }
 
         // 🔹 Verify Firebase ID token
@@ -55,17 +55,7 @@ router.post("/verifyUser", async (req, res) => {
             const newUserID = await getNextUserID(); // Function to get the next user ID
             console.log(`✅ Assigning UserID: ${newUserID} to new user`);
 
-            // user = new User({
-            //     UserID: newUserID,
-            //     FirebaseUID: uid,
-            //     Name: name || "Unknown User",
-            //     Email: email || "",
-            //     Location: "city",
-            //     ContactNumber: phone_number || "null",
-            //     RoleType: "User",
-            //     CreatedAt: new Date(),
-            // });
-            const user = new User({
+            user = new User({
                 UserID: newUserID, // ✅ Required (Unique)
                 FirebaseUID: uid,  // ✅ Required (Unique)
                 Name: name || "Unknown User", // ✅ Required
@@ -81,17 +71,22 @@ router.post("/verifyUser", async (req, res) => {
                 updatedAt: new Date(),
                 updatedInterests: false,
                 Services: [],
-              });
+                fcm_token: fcm_token,  // Store FCM Token in the DB
+            });
               
             await user.save();
             console.log("✅ New user saved successfully");
         } else {
             console.log(`🔹 User already exists, updating details for ${email}`);
+            console.log(`🔹 Current FCM Token: ${user.fcm_token}, New FCM Token: ${fcm_token}`);
 
+            // Update user details, including the fcm_token
             user.FirebaseUID = uid;
             user.Name = name || user.Name;
             user.ContactNumber = phone_number || user.ContactNumber;
-            user.UpdatedAt = new Date();
+            user.fcm_token = fcm_token;  // Update FCM token
+            user.updatedAt = new Date();
+
             await user.save();
             console.log("✅ Existing user updated successfully");
         }
@@ -108,7 +103,6 @@ router.post("/verifyUser", async (req, res) => {
         res.status(500).json({ success: false, message: "Internal server error." });
     }
 });
-
 
 
 router.patch("/updateUser/:firebaseUID", async (req, res) => {

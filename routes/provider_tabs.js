@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
 
 // Mongoose Models (using your provided schemas)
 const User = require('../models/user');
@@ -26,27 +25,25 @@ router.get('/provider/:providerId', async (req, res) => {
     if (user.RoleType !== 'provider') {
       return res.status(403).json({ error: 'User is not a provider' });
     }
-    const mongoProviderId = user._id; // Use this for queries
-    const providerProfile = user; // Use user document as providerProfile
+    const mongoProviderId = user._id;
+    const providerProfile = user;
 
     let services = [];
 
     // Fetch services based on the tab
     switch (tab) {
       case 'All Services':
-        // Fetch all listings for the provider
         services = await Listings.find({ ProviderID: mongoProviderId });
         break;
 
       case 'To Ship':
-        // Fetch listings where Booking.Status is 'Confirmed' and EscrowStatus is 'Pending' or 'Secured'
         const toShipBookings = await Booking.find({
           ProviderID: mongoProviderId,
           Status: 'Confirmed',
           EscrowStatus: { $in: ['Pending', 'Secured'] },
         }).select('ListingID');
 
-        const toShipListingIds = toShipBookings.map((booking) => booking.ListingID);
+        const toShipListingIds = toShipBookings.map((b) => b.ListingID);
         services = await Listings.find({
           _id: { $in: toShipListingIds },
           ProviderID: mongoProviderId,
@@ -54,7 +51,6 @@ router.get('/provider/:providerId', async (req, res) => {
         break;
 
       case 'In-Review':
-        // Fetch listings where ComplianceLog.Status is 'under-review'
         const inReviewLogs = await ComplianceLog.find({
           Status: 'under-review',
         }).select('ListingID');
@@ -67,9 +63,6 @@ router.get('/provider/:providerId', async (req, res) => {
         break;
 
       case 'Completed':
-        // Fetch listings where:
-        // - For rentals: Payment.Status is 'Completed'
-        // - For sales: Purchase.EscrowStatus is 'Completed' or 'Released'
         const completedPayments = await Payment.find({
           Status: 'Completed',
         })
@@ -81,15 +74,15 @@ router.get('/provider/:providerId', async (req, res) => {
           .select('BookingID');
 
         const completedPaymentListingIds = completedPayments
-          .filter((payment) => payment.BookingID)
-          .map((payment) => payment.BookingID.ListingID);
+          .filter((p) => p.BookingID)
+          .map((p) => p.BookingID.ListingID);
 
         const completedPurchases = await Purchase.find({
           ProviderID: mongoProviderId,
           EscrowStatus: { $in: ['Completed', 'Released'] },
         }).select('ListingID');
 
-        const completedPurchaseListingIds = completedPurchases.map((purchase) => purchase.ListingID);
+        const completedPurchaseListingIds = completedPurchases.map((p) => p.ListingID);
 
         const completedListingIds = [...new Set([...completedPaymentListingIds, ...completedPurchaseListingIds])];
 
@@ -111,9 +104,9 @@ router.get('/provider/:providerId', async (req, res) => {
         select: 'ListingID ProviderID',
       })
       .select('ReviewID BookingID ReviewerID Rating Comment Timestamp');
-    const filteredReviews = reviews.filter((review) => review.BookingID); // Keep only reviews with matching bookings
 
-    // Return the data in the expected format
+    const filteredReviews = reviews.filter((review) => review.BookingID);
+
     res.json({
       providerProfile,
       services,
