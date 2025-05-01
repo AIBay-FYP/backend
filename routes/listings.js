@@ -245,6 +245,30 @@ const mongoose = require("mongoose");
 const Listing = require("../models/Listings");
 const ComplianceLog = require("../models/ComplianceLog");
 const { updateDemandScore } = require("../utils/demandScore");
+const DocumentVerification = require("../models/DocumentVerification"); // Import the DocumentVerification model
+
+
+const generateDocumentID = async () => {
+  try {
+    // Find the latest DocumentVerification document sorted by DocumentID in descending order
+    const latestDocument = await DocumentVerification.findOne()
+      .sort({ DocumentID: -1 })
+      .select("DocumentID");
+
+    let newNumber = 1; // Default to 1 if no documents exist
+    if (latestDocument && latestDocument.DocumentID) {
+      // Extract the numeric part from DocumentID (e.g., '001' from 'DOC001')
+      const numericPart = parseInt(latestDocument.DocumentID.replace("DOC", ""), 10);
+      newNumber = numericPart + 1;
+    }
+
+    // Format the number with leading zeros (e.g., 1 -> '001')
+    const formattedNumber = newNumber.toString().padStart(3, "0");
+    return `DOC${formattedNumber}`;
+  } catch (error) {
+    throw new Error("Failed to generate DocumentID: " + error.message);
+  }
+};
 
 // Function to generate LogID in CL00X format
 async function generateLogID() {
@@ -472,17 +496,33 @@ router.post("/", async (req, res) => {
     // Save the compliance log
     await complianceLog.save();
 
-    return res.status(201).json({ 
-      message: "Listing created successfully with compliance log!", 
+    // Create document verification entries for each uploaded document
+    const documentPromises = Documents.map(async (docUrl) => {
+      const documentID = await generateDocumentID(); // Generate a unique ID for the document
+      return new DocumentVerification({
+        DocumentID: documentID,
+        File: docUrl, // Use the document URL directly
+        VerifiedBy: null, // Initially not verified
+        Timestamp: new Date(),
+        VerificationStatus: "Pending", // Default status
+        ServiceID: newListing._id, // Reference to the newly created listing
+        UserID: user._id, // Reference to the user who uploaded the listing
+      }).save();
+    });
+
+    // Wait for all document verification entries to be created
+    await Promise.all(documentPromises);
+
+    return res.status(201).json({
+      message: "Listing created successfully with compliance log and document verifications!",
       listing: newListing,
-      complianceLog 
+      complianceLog,
     });
   } catch (error) {
     console.error("Error creating listing:", error);
     return res.status(500).json({ error: error.message });
   }
 });
-
 // Update a listing
 router.put("/:id", async (req, res) => {
   try {
