@@ -19,7 +19,7 @@ router.post("/request", async (req, res) => {
   try {
     const { firebaseUID, ListingID, StartDate, EndDate, Price } = req.body;
     console.log("Requesting booking with data:", req.body);
-    // Validate required fields
+
     if (!firebaseUID || !ListingID || !StartDate || !EndDate || !Price) {
       return res.status(400).json({
         success: false,
@@ -30,7 +30,6 @@ router.post("/request", async (req, res) => {
     const startDateObj = new Date(StartDate);
     const endDateObj = new Date(EndDate);
 
-    // Check if valid dates
     if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
       return res.status(400).json({
         success: false,
@@ -38,7 +37,6 @@ router.post("/request", async (req, res) => {
       });
     }
 
-    // Ensure StartDate is before EndDate
     if (startDateObj >= endDateObj) {
       return res.status(400).json({
         success: false,
@@ -46,55 +44,57 @@ router.post("/request", async (req, res) => {
       });
     }
 
-    // Find consumer
+    console.log("Finding consumer...");
     const consumer = await User.findOne({ FirebaseUID: firebaseUID });
     if (!consumer) {
+      console.log("Consumer not found.");
       return res.status(404).json({ success: false, message: "Consumer not found." });
     }
+    console.log("Consumer found:", consumer._id);
 
-    // Find listing
+    console.log("Finding listing...");
     const listing = await Listing.findById(ListingID);
     if (!listing) {
+      console.log("Listing not found.");
       return res.status(404).json({ success: false, message: "Listing not found." });
     }
+    console.log("Listing found:", listing._id);
 
-    // Find provider
+    console.log("Finding provider...");
     const provider = await User.findById(listing.ProviderID);
     if (!provider) {
+      console.log("Provider not found.");
       return res.status(404).json({ success: false, message: "Provider not found." });
     }
+    console.log("Provider found:", provider._id);
 
-    // Create booking
+    const bookingID = await generateBookingID();
+    console.log("Creating booking with ID:", bookingID);
+
     const booking = new Booking({
-      BookingID: await generateBookingID(),
+      BookingID: bookingID,
       ConsumerID: consumer._id,
       ProviderID: provider._id,
-      ListingID,
+      ListingID: listing._id,
       StartDate: startDateObj,
       EndDate: endDateObj,
       Price,
     });
 
     await booking.save();
+    console.log("Booking saved:", booking._id);
 
-     // Update demand score for the listing
     await updateDemandScore(ListingID, "bookingRequest");
 
-    await sendNotification(
-      provider.fcm_token,
-      "Rental Service Request",
-      `${consumer.Name} requested a booking for "${listing.Title}".`,
-      { type: "bookingRequest", bookingId: booking._id.toString() }
-    );
-
-    // Notify provider
     const notification = new Notification({
       NotificationID: `N${Date.now()}`,
       UserID: provider._id,
       Message: `New service request for "${listing.Title}"`,
       Type: "Booking",
     });
+
     await notification.save();
+    console.log("Notification saved");
 
     return res.status(201).json({
       success: true,
@@ -110,6 +110,7 @@ router.post("/request", async (req, res) => {
     });
   }
 });
+
 
 router.patch("/update/:id", async (req, res) => {
   try {

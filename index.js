@@ -5,12 +5,14 @@ const cors = require("cors");
 const authRoutes = require('./routes/auth');
 const listings = require("./routes/listings");
 const profileRoutes = require("./routes/profile");
+const providerTabs = require("./routes/provider_tabs");
 const user = require("./routes/user");
 const topProviders = require("./routes/top_providers");
 const category = require("./routes/category");
 const booking = require("./routes/booking");
 const purchase = require("./routes/purchase")
 const notification = require("./routes/notification")
+const provider_tabs = require("./routes/provider_tabs")
 const dashboardRoutes = require('./routes/provider_dashboard');
 const favorites = require("./routes/favorites")
 
@@ -28,6 +30,7 @@ app.get("/", (req, res) => {
 app.use("/api", authRoutes);
 app.use("/listings", listings);
 app.use("/profile", profileRoutes);
+app.use("/profile", providerTabs);
 app.use("/user", user);
 app.use("/providers", topProviders);
 app.use("/category", category);
@@ -36,6 +39,8 @@ app.use("/purchase", purchase);
 app.use("/notifications", notification);
 app.use("/dashboard", dashboardRoutes);
 app.use("/favorites", favorites);
+app.use("/provider", provider_tabs);
+
 
 
 mongoose.connect(process.env.MONGO_URI)

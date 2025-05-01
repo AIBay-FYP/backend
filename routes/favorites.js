@@ -23,8 +23,8 @@ router.get("/:userId", async (req, res) => {
 // POST favorite
 router.post("/", async (req, res) => {
   try {
-    const { ConsumerID, ListingID } = req.body;
-    const user = await User.findOne({ FirebaseUID: ConsumerID });
+    const { firebaseUID, ListingID } = req.body;
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
     if (!user) return res.status(400).json({ message: "User not found." });
 
     const exists = await Favorite.findOne({ ConsumerID: user._id, ListingID });
