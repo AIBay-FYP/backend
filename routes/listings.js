@@ -233,6 +233,12 @@
 
 // module.exports = router;
 
+
+
+
+
+//ifrah
+
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose"); 
@@ -263,32 +269,32 @@ async function generateLogID() {
   }
 }
 
-// Get all listings
-router.get("/", async (req, res) => {
-  try {
-    const listings = await Listing.find({});
-    console.log("LSIITITI",listings);
-    return res.status(200).json(listings);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
+// // Get all listings
+// router.get("/", async (req, res) => {
+//   try {
+//     const listings = await Listing.find({});
+//     console.log("LSIITITI",listings);
+//     return res.status(200).json(listings);
+//   } catch (error) {
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
 
-// get the most recent listings
-router.get("/recent", async (req, res) => {
-  try {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+// // get the most recent listings
+// router.get("/recent", async (req, res) => {
+//   try {
+//     const sevenDaysAgo = new Date();
+//     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const recentListings = await Listing.find({
-      DatePosted: { $gte: sevenDaysAgo }
-    }).sort({ DatePosted: -1 }); // Newest first
+//     const recentListings = await Listing.find({
+//       DatePosted: { $gte: sevenDaysAgo }
+//     }).sort({ DatePosted: -1 }); // Newest first
 
-    return res.status(200).json(recentListings);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-});
+//     return res.status(200).json(recentListings);
+//   } catch (error) {
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
 
 // Get listings by id
 router.get("/id/:id", async (req, res) => {
@@ -313,20 +319,20 @@ router.get("/id/:id", async (req, res) => {
 });
 
 // Get listings by category
-router.get("/:category", async (req, res) => {
-  try {
-    console.log("INSIDE CATEGORY")
+// router.get("/:category", async (req, res) => {
+//   try {
+//     console.log("INSIDE CATEGORY")
 
-      const category = decodeURIComponent(req.params.category); // Decode URL component
-      console.log(category);
-      const listings = await Listing.find({ Category: category }); // Filter by category
-      console.log(listings);
-      res.json(listings);
-  } catch (error) {
-      console.error("Error fetching listings:", error);
-      res.status(500).json({ message: "Internal Server Error" });
-  }
-});
+//       const category = decodeURIComponent(req.params.category); // Decode URL component
+//       console.log(category);
+//       const listings = await Listing.find({ Category: category }); // Filter by category
+//       console.log(listings);
+//       res.json(listings);
+//   } catch (error) {
+//       console.error("Error fetching listings:", error);
+//       res.status(500).json({ message: "Internal Server Error" });
+//   }
+// });
 
 // Search Listings API
 router.get("/search", async (req, res) => {
@@ -438,7 +444,7 @@ router.post("/", async (req, res) => {
       RentalDays,
       Currency,
       Documents,
-      ComplianceStatus: 'Under Review', // Set default ComplianceStatus
+      
     });
 
     // Save the listing
@@ -501,3 +507,192 @@ router.put("/:id", async (req, res) => {
 });
 
 module.exports = router;
+
+
+// Get all listings
+router.get("/", async (req, res) => {
+  try {
+    // Fetch listings with 'Approved' status in ComplianceLog
+    const approvedListings = await Listing.aggregate([
+      {
+        $lookup: {
+          from: "ComplianceLog", // Collection name for ComplianceLog
+          localField: "_id",
+          foreignField: "ListingID",
+          as: "complianceLogs",
+        },
+      },
+      {
+        $match: {
+          complianceLogs: {
+            $elemMatch: { Status: "Approved" }, // Match at least one document in the array
+          },
+        },
+      },
+      {
+        $project: {
+          complianceLogs: 0, // Exclude the complianceLogs field
+        },
+      },
+    ]);
+
+    // Fetch listings not present in ComplianceLog
+    const unloggedListings = await Listing.aggregate([
+      {
+        $lookup: {
+          from: "ComplianceLog", // Collection name for ComplianceLog
+          localField: "_id",
+          foreignField: "ListingID",
+          as: "complianceLogs",
+        },
+      },
+      {
+        $match: {
+          complianceLogs: { $size: 0 }, // No matching ComplianceLog entries
+        },
+      },
+      {
+        $project: {
+          complianceLogs: 0, // Exclude the complianceLogs field
+        },
+      },
+    ]);
+
+    // Combine both results
+    const listings = [...approvedListings, ...unloggedListings];
+
+    return res.status(200).json(listings);
+  } catch (error) {
+    console.error("Error fetching listings:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
+
+// Get the most recent listings
+router.get("/recent", async (req, res) => {
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    // Fetch recent listings with 'Approved' status in ComplianceLog
+    const approvedListings = await Listing.aggregate([
+      {
+        $lookup: {
+          from: "ComplianceLog",
+          localField: "_id",
+          foreignField: "ListingID",
+          as: "complianceLogs",
+        },
+      },
+      {
+        $match: {
+          complianceLogs: {
+            $elemMatch: { Status: "Approved" },
+          },
+          DatePosted: { $gte: sevenDaysAgo },
+        },
+      },
+      {
+        $project: {
+          complianceLogs: 0, // Exclude the complianceLogs field
+        },
+      },
+    ]);
+
+    // Fetch recent listings not present in ComplianceLog
+    const unloggedListings = await Listing.aggregate([
+      {
+        $lookup: {
+          from: "ComplianceLog",
+          localField: "_id",
+          foreignField: "ListingID",
+          as: "complianceLogs",
+        },
+      },
+      {
+        $match: {
+          complianceLogs: { $size: 0 },
+          DatePosted: { $gte: sevenDaysAgo },
+        },
+      },
+
+      {
+        $project: {
+          complianceLogs: 0, // Exclude the complianceLogs field
+        },
+      },
+    ]);
+
+    // Combine both results
+    const recentListings = [...approvedListings, ...unloggedListings];
+
+    return res.status(200).json(recentListings);
+  } catch (error) {
+    console.error("Error fetching recent listings:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
+
+//Get listings by category
+router.get("/:category", async (req, res) => {
+  try {
+    const category = decodeURIComponent(req.params.category);
+
+    // Fetch listings by category with 'Approved' status in ComplianceLog
+    const approvedListings = await Listing.aggregate([
+      {
+        $lookup: {
+          from: "ComplianceLog",
+          localField: "_id",
+          foreignField: "ListingID",
+          as: "complianceLogs",
+        },
+      },
+      {
+        $match: {
+          complianceLogs: {
+            $elemMatch: { Status: "Approved" }, // Match at least one document in the array
+          },
+          Category: category, // Match the category field in the Listing collection
+        },
+      },
+      {
+        $project: {
+          complianceLogs: 0, // Exclude the complianceLogs field
+        },
+      },
+    ]);
+
+    // Fetch listings by category not present in ComplianceLog
+    const unloggedListings = await Listing.aggregate([
+      {
+        $lookup: {
+          from: "ComplianceLog",
+          localField: "_id",
+          foreignField: "ListingID",
+          as: "complianceLogs",
+        },
+      },
+      {
+        $match: {
+          complianceLogs: { $size: 0 },
+          Category: category,
+        },
+      },
+
+      {
+        $project: {
+          complianceLogs: 0, // Exclude the complianceLogs field
+        },
+      },
+    ]);
+
+    // Combine both results
+    const listings = [...approvedListings, ...unloggedListings];
+
+    return res.status(200).json(listings);
+  } catch (error) {
+    console.error("Error fetching listings by category:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
