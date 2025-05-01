@@ -8,7 +8,7 @@ const complianceLogSchema = new mongoose.Schema({
   NotificationID: { type: mongoose.Schema.Types.ObjectId, ref: 'Notification', required: true },
   Status: {
     type: String,
-    enum: ['Flagged', 'under-review', 'Approved', 'Rejected'],
+    enum: ['Flagged', 'Under Review', 'Approved', 'Rejected'],
     default: 'Flagged',
   },
 }, {

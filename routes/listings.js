@@ -1,15 +1,267 @@
+// const express = require("express");
+// const router = express.Router();
+// const mongoose = require("mongoose"); 
+// const Listing = require("../models/Listings");
+// const { updateDemandScore } = require("../utils/demandScore");
+// const User = require("../models/user");
+
+// const generateListingID = async () => {
+//   const count = await Listing.countDocuments();
+//   return `L${(count + 1).toString().padStart(3, "0")}`;
+// };
+
+
+// // Get all listings
+// router.get("/", async (req, res) => {
+//   try {
+//     const listings = await Listing.find({});
+//     console.log("LSIITITI",listings);
+//     return res.status(200).json(listings);
+//   } catch (error) {
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
+
+
+// // get the most recent listings
+// router.get("/recent", async (req, res) => {
+//   try {
+//     const sevenDaysAgo = new Date();
+//     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+//     const recentListings = await Listing.find({
+//       DatePosted: { $gte: sevenDaysAgo }
+//     }).sort({ DatePosted: -1 }); // Newest first
+
+//     return res.status(200).json(recentListings);
+//   } catch (error) {
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
+
+// // Get listings by id
+// router.get("/id/:id", async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     if (!mongoose.Types.ObjectId.isValid(id)) {
+//       return res.status(400).json({ message: "Invalid listing ID" });
+//     }
+//     // Find the listing by ID and populate the 'ProviderID' field with 'name' and 'email'
+//     const listing = await Listing.findById(id).populate('ProviderID', 'name email');
+//     if (!listing) {
+//       return res.status(404).json({ message: "Listing not found" });
+//     }
+//     console.log("Listing found:", listing);
+//     await updateDemandScore(id, "view"); // Update demand score on view
+
+//     res.status(200).json(listing);
+//   } catch (err) {
+//     console.error("Error fetching listing by ID:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// });
+
+// // Get listings by category
+// router.get("/:category", async (req, res) => {
+//   try {
+//     console.log("INSIDE CATEGORY")
+
+//       const category = decodeURIComponent(req.params.category); // Decode URL component
+//       console.log(category);
+//       const listings = await Listing.find({ Category: category }); // Filter by category
+//       console.log(listings);
+//       res.json(listings);
+//   } catch (error) {
+//       console.error("Error fetching listings:", error);
+//       res.status(500).json({ message: "Internal Server Error" });
+//   }
+// });
+
+//   // Search Listings API
+//   router.get("/search", async (req, res) => {
+//   try {
+//     const { query, category, minPrice, maxPrice, location } = req.query;
+
+//     let filter = {};
+
+//     // Full-text search on product name and description
+//     if (query) {
+//       filter.$or = [
+//         { title: { $regex: query, $options: "i" } }, // Case-insensitive title search
+//         { description: { $regex: query, $options: "i" } }, // Case-insensitive description search
+//         { keywords: { $in: query.split(" ") } }, // Matches any keyword in the array
+//       ].sort({ DemandScore: -1 });;
+//     }
+
+//     // Filter by category
+//     if (category) {
+//       filter.category = category;
+//     }
+
+//     // Filter by price range
+//     if (minPrice && maxPrice) {
+//       filter.$or = [
+//         { fixedPrice: { $gte: minPrice, $lte: maxPrice } },
+//         { minPrice: { $gte: minPrice }, maxPrice: { $lte: maxPrice } }
+//       ];
+//     } else if (minPrice) {
+//       filter.$or = [
+//         { fixedPrice: { $gte: minPrice } },
+//         { minPrice: { $gte: minPrice } }
+//       ];
+//     } else if (maxPrice) {
+//       filter.$or = [
+//         { fixedPrice: { $lte: maxPrice } },
+//         { maxPrice: { $lte: maxPrice } }
+//       ];
+//     }
+
+//     // Filter by location 
+//     if (location) {
+//       filter.location = { $regex: location, $options: "i" };
+//     }
+
+//     // Execute the search
+//     const listings = await Listing.find(filter);
+
+//     res.json({ success: true, data: listings });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ success: false, message: "Server Error" });
+//   }
+// });
+
+
+// // Create a new listing
+// router.post("/", async (req, res) => {
+//   try {
+//     const {
+//       ProviderID,
+//       Title,
+//       Description,
+//       IsNegotiable,
+//       IsFixedPrice,
+//       Availability,
+//       Category,
+//       Photos,
+//       DemandScore,
+//       FAQs,
+//       ServiceType,
+//       DateCreated,
+//       DatePosted,
+//       Location,
+//       DaysAvailable,
+//       SecurityFee,
+//       CancellationFee,
+//       Keywords,
+//       MaxPrice,
+//       MinPrice,
+//       FixedPrice,
+//       RentalDays,
+//       Currency,
+//       Documents,
+//     } = req.body;
+
+
+//     const ListingID = await generateListingID();
+
+//     const user = await User.findOne({ FirebaseUID: ProviderID });
+//     let newListing = new Listing({
+//       ProviderID: user._id,
+//       ListingID,
+//       Title,
+//       Description,
+//       IsNegotiable,
+//       IsFixedPrice,
+//       Availability,
+//       Category,
+//       Photos,
+//       DemandScore,
+//       FAQs,
+//       ServiceType,
+//       DateCreated,
+//       DatePosted,
+//       Location,
+//       DaysAvailable,
+//       SecurityFee,
+//       CancellationFee,
+//       Keywords,
+//       MaxPrice,
+//       MinPrice,
+//       FixedPrice,
+//       RentalDays,
+//       Currency,
+//       Documents,
+//     });
+
+//     console.log("New Listing:", newListing);
+//     await newListing.save();
+//     return res.status(201).json({ message: "Listing created successfully!", listing: newListing });
+//   } catch (error) {
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
+
+// // Update a listing
+// router.put("/:id", async (req, res) => {
+//   try {
+//     const updatedData = req.body;
+
+//     // Apply Business Logic
+//     if (updatedData.IsNegotiable) {
+//       updatedData.IsFixedPrice = false;
+//       updatedData.FixedPrice = 0;
+//     } else if (updatedData.IsFixedPrice) {
+//       updatedData.IsNegotiable = false;
+//       updatedData.MinPrice = 0;
+//       updatedData.MaxPrice = 0;
+//     }
+
+//     if (updatedData.ServiceType === "Sale") {
+//       updatedData.RentalDays = 0;
+//     }
+
+//     const updatedListing = await Listing.findByIdAndUpdate(req.params.id, updatedData, { new: true });
+
+//     if (!updatedListing) return res.status(404).json({ message: "Listing not found" });
+
+//     return res.status(200).json({ message: "Listing updated successfully!", listing: updatedListing });
+//   } catch (error) {
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
+
+// module.exports = router;
+
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose"); 
 const Listing = require("../models/Listings");
+const ComplianceLog = require("../models/ComplianceLog");
 const { updateDemandScore } = require("../utils/demandScore");
-const User = require("../models/user");
 
-const generateListingID = async () => {
-  const count = await Listing.countDocuments();
-  return `L${(count + 1).toString().padStart(3, "0")}`;
-};
+// Function to generate LogID in CL00X format
+async function generateLogID() {
+  try {
+    // Find the latest ComplianceLog document sorted by LogID in descending order
+    const latestLog = await ComplianceLog.findOne()
+      .sort({ LogID: -1 })
+      .select('LogID');
 
+    let newNumber = 1; // Default to 1 if no logs exist
+    if (latestLog && latestLog.LogID) {
+      // Extract the numeric part from LogID (e.g., '001' from 'CL001')
+      const numericPart = parseInt(latestLog.LogID.replace('CL', ''), 10);
+      newNumber = numericPart + 1;
+    }
+
+    // Format the number with leading zeros (e.g., 1 -> '001')
+    const formattedNumber = newNumber.toString().padStart(3, '0');
+    return `CL${formattedNumber}`;
+  } catch (error) {
+    throw new Error('Failed to generate LogID: ' + error.message);
+  }
+}
 
 // Get all listings
 router.get("/", async (req, res) => {
@@ -21,7 +273,6 @@ router.get("/", async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 });
-
 
 // get the most recent listings
 router.get("/recent", async (req, res) => {
@@ -77,8 +328,8 @@ router.get("/:category", async (req, res) => {
   }
 });
 
-  // Search Listings API
-  router.get("/search", async (req, res) => {
+// Search Listings API
+router.get("/search", async (req, res) => {
   try {
     const { query, category, minPrice, maxPrice, location } = req.query;
 
@@ -131,7 +382,6 @@ router.get("/:category", async (req, res) => {
   }
 });
 
-
 // Create a new listing
 router.post("/", async (req, res) => {
   try {
@@ -162,13 +412,9 @@ router.post("/", async (req, res) => {
       Documents,
     } = req.body;
 
-
-    const ListingID = await generateListingID();
-
-    const user = await User.findOne({ FirebaseUID: ProviderID });
+    // Create new listing with ComplianceStatus set to 'Under Review'
     let newListing = new Listing({
-      ProviderID: user._id,
-      ListingID,
+      ProviderID,
       Title,
       Description,
       IsNegotiable,
@@ -192,12 +438,35 @@ router.post("/", async (req, res) => {
       RentalDays,
       Currency,
       Documents,
+      ComplianceStatus: 'Under Review', // Set default ComplianceStatus
     });
 
-    console.log("New Listing:", newListing);
+    // Save the listing
     await newListing.save();
-    return res.status(201).json({ message: "Listing created successfully!", listing: newListing });
+
+    // Generate LogID in CL00X format
+    const logID = await generateLogID();
+
+    // Create a corresponding ComplianceLog entry
+    const complianceLog = new ComplianceLog({
+      LogID: logID,
+      ViolationType: 'None', // Default, as it's a new listing under review
+      ListingID: newListing._id,
+      LastReviewed: new Date(), // Current timestamp
+      NotificationID: new mongoose.Types.ObjectId(), // Placeholder; replace with actual logic if needed
+      Status: 'Under Review', // Matches listing's ComplianceStatus
+    });
+
+    // Save the compliance log
+    await complianceLog.save();
+
+    return res.status(201).json({ 
+      message: "Listing created successfully with compliance log!", 
+      listing: newListing,
+      complianceLog 
+    });
   } catch (error) {
+    console.error("Error creating listing:", error);
     return res.status(500).json({ error: error.message });
   }
 });
