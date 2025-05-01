@@ -3,13 +3,14 @@ const router = express.Router();
 const mongoose = require('mongoose');
 
 // Mongoose Models (using your provided schemas)
-const User = mongoose.model('User');
-const Listings = mongoose.model('Listings');
-const Booking = mongoose.model('Booking');
-const Purchase = mongoose.model('Purchase');
-const Payment = mongoose.model('Payment');
-const Review = mongoose.model('Review');
-const ComplianceLog = mongoose.model('ComplianceLog');
+const User = require('../models/user');
+const Listings = require('../models/Listings');
+const Purchase = require('../models/Purchase');
+const Booking = require('../models/Booking');
+const Payment = require('../models/Payment');
+const Review = require('../models/Review');
+const ComplianceLog = require('../models/ComplianceLog');
+
 
 // GET Provider Profile
 router.get('/provider/:providerId', async (req, res) => {
