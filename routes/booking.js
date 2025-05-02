@@ -131,14 +131,15 @@ router.get('/between/:consumerId/:providerId', async (req, res) => {
       ProviderID: provider,
       Status: { $in: ['Confirmed'] }
     })
-    .sort({ BookingDate: -1 })
+    .sort({ StartDate: -1 })
     .populate('ListingID')  // Populate the ListingID to get access to the serviceType
     .populate('ConsumerID')
     .populate('ProviderID');
 
     // Filter bookings based on the serviceType of the associated listing
-    const filteredBookings = bookings.filter(booking => booking.ListingID.serviceType === 'Rent');
-
+    const filteredBookings = bookings.filter(booking => booking.ListingID.ServiceType === 'Rent');
+    console.log('Filtered bookings:', filteredBookings);
+    
     if (!filteredBookings || filteredBookings.length === 0) {
       return res.status(404).json({ success: false, message: 'No active rental bookings found between these users.' });
     }
