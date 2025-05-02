@@ -4,6 +4,7 @@
 // const Listing = require("../models/Listings");
 // const { updateDemandScore } = require("../utils/demandScore");
 const User = require("../models/user");
+const DocumentVerification = require("../models/DocumentVerification");
 
 const generateListingID = async () => {
   const count = await Listing.countDocuments();
@@ -245,30 +246,35 @@ const mongoose = require("mongoose");
 const Listing = require("../models/Listings");
 const ComplianceLog = require("../models/ComplianceLog");
 const { updateDemandScore } = require("../utils/demandScore");
-const DocumentVerification = require("../models/DocumentVerification"); // Import the DocumentVerification model
+// const DocumentVerification = require("../models/DocumentVerification"); 
 
+// const generateDocumentID = async () => {
+//   try {
+//     // Find the latest DocumentVerification document sorted by DocumentID in descending order
+//     const latestDocument = await DocumentVerification.findOne()
+//       .sort({ DocumentID: -1 })
+//       .select("DocumentID");
+
+//     let newNumber = 1; // Default to 1 if no documents exist
+//     if (latestDocument && latestDocument.DocumentID) {
+//       // Extract the numeric part from DocumentID (e.g., '001' from 'DOC001')
+//       const numericPart = parseInt(latestDocument.DocumentID.replace("DOC", ""), 10);
+//       newNumber = numericPart + 1;
+//     }
+
+//     // Format the number with leading zeros (e.g., 1 -> '001')
+//     const formattedNumber = newNumber.toString().padStart(3, "0");
+//     return `DOC${formattedNumber}`;
+//   } catch (error) {
+//     throw new Error("Failed to generate DocumentID: " + error.message);
+//   }
+// };
 
 const generateDocumentID = async () => {
-  try {
-    // Find the latest DocumentVerification document sorted by DocumentID in descending order
-    const latestDocument = await DocumentVerification.findOne()
-      .sort({ DocumentID: -1 })
-      .select("DocumentID");
-
-    let newNumber = 1; // Default to 1 if no documents exist
-    if (latestDocument && latestDocument.DocumentID) {
-      // Extract the numeric part from DocumentID (e.g., '001' from 'DOC001')
-      const numericPart = parseInt(latestDocument.DocumentID.replace("DOC", ""), 10);
-      newNumber = numericPart + 1;
-    }
-
-    // Format the number with leading zeros (e.g., 1 -> '001')
-    const formattedNumber = newNumber.toString().padStart(3, "0");
-    return `DOC${formattedNumber}`;
-  } catch (error) {
-    throw new Error("Failed to generate DocumentID: " + error.message);
-  }
+  const count = await DocumentVerification.countDocuments();
+  return `D${(count + 1).toString().padStart(3, "0")}`;
 };
+
 
 // Function to generate LogID in CL00X format
 async function generateLogID() {
@@ -439,14 +445,19 @@ router.post("/", async (req, res) => {
       FixedPrice,
       RentalDays,
       Currency,
-      Documents,
+      Documents, // Array of document URLs
       Quantity,
     } = req.body;
 
     const ListingID = await generateListingID();
 
-    // Create new listing with ComplianceStatus set to 'Under Review'
+    // Fetch the user by FirebaseUID
     const user = await User.findOne({ FirebaseUID: ProviderID });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Create new listing with ComplianceStatus set to 'Under Review'
     let newListing = new Listing({
       ProviderID: user._id,
       ListingID,
@@ -474,7 +485,6 @@ router.post("/", async (req, res) => {
       Currency,
       Documents,
       Quantity,
-      
     });
 
     // Save the listing
@@ -486,11 +496,11 @@ router.post("/", async (req, res) => {
     // Create a corresponding ComplianceLog entry
     const complianceLog = new ComplianceLog({
       LogID: logID,
-      ViolationType: 'None', // Default, as it's a new listing under review
+      ViolationType: "None", // Default, as it's a new listing under review
       ListingID: newListing._id,
       LastReviewed: new Date(), // Current timestamp
       NotificationID: new mongoose.Types.ObjectId(), // Placeholder; replace with actual logic if needed
-      Status: 'Under Review', // Matches listing's ComplianceStatus
+      Status: "Under Review", // Matches listing's ComplianceStatus
     });
 
     // Save the compliance log
@@ -499,6 +509,8 @@ router.post("/", async (req, res) => {
     // Create document verification entries for each uploaded document
     const documentPromises = Documents.map(async (docUrl) => {
       const documentID = await generateDocumentID(); // Generate a unique ID for the document
+
+      // Save the document verification entry
       return new DocumentVerification({
         DocumentID: documentID,
         File: docUrl, // Use the document URL directly
@@ -517,12 +529,14 @@ router.post("/", async (req, res) => {
       message: "Listing created successfully with compliance log and document verifications!",
       listing: newListing,
       complianceLog,
+      documents: await DocumentVerification.find({ ServiceID: newListing._id }), // Return the created documents
     });
   } catch (error) {
     console.error("Error creating listing:", error);
     return res.status(500).json({ error: error.message });
   }
 });
+
 // Update a listing
 router.put("/:id", async (req, res) => {
   try {
