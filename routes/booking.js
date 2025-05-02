@@ -112,6 +112,92 @@ router.post("/request", async (req, res) => {
 });
 
 
+router.get('/between/:consumerId/:providerId', async (req, res) => {
+  try {
+    const { consumerId, providerId } = req.params;
+
+    const consumer = await User.findOne({ FirebaseUID: consumerId });
+    if (!consumer) {
+        return res.status(404).json({ success: false, message: "Consumer not found" });
+    }
+
+    const provider = await User.findOne({ FirebaseUID: providerId });
+    if (!provider) {
+        return res.status(404).json({ success: false, message: "Provider not found" });
+    }
+
+    const bookings = await Booking.find({
+      ConsumerID: consumer,
+      ProviderID: provider,
+      Status: { $in: ['Confirmed'] }
+    })
+    .sort({ BookingDate: -1 })
+    .populate('ListingID')  // Populate the ListingID to get access to the serviceType
+    .populate('ConsumerID')
+    .populate('ProviderID');
+
+    // Filter bookings based on the serviceType of the associated listing
+    const filteredBookings = bookings.filter(booking => booking.ListingID.serviceType === 'Rent');
+
+    if (!filteredBookings || filteredBookings.length === 0) {
+      return res.status(404).json({ success: false, message: 'No active rental bookings found between these users.' });
+    }
+
+    res.status(200).json({ success: true, bookings: filteredBookings });
+  } catch (error) {
+    console.error('Error fetching bookings:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+
+
+
+router.get('/active/:consumerId/:providerId', async (req, res) => {
+  try {
+      const { consumerId, providerId } = req.params;
+
+      const consumer = await User.findOne({ FirebaseUID: consumerId });
+      if (!consumer) {
+          return res.status(404).json({ success: false, message: "Consumer not found" });
+      }
+
+      const provider = await User.findOne({ FirebaseUID: providerId });
+      if (!provider) {
+          return res.status(404).json({ success: false, message: "Provider not found" });
+      }
+
+      console.log('Fetching active booking for consumer:', consumerId, 'and provider:', providerId);
+      const booking = await Booking.findOne({
+          ConsumerID: consumer,
+          ProviderID: provider,
+          Status: { $in: ['Confirmed'] }
+      })
+      .sort({ BookingDate: -1 })  // Adjust according to your date field
+      .populate('ListingID')  // Populate the ListingID to get access to the serviceType
+      .populate('ConsumerID')
+      .populate('ProviderID');
+
+      // Check if the serviceType of the Listing is 'Rent'
+      if (booking && booking.ListingID.serviceType !== 'Rent') {
+          return res.status(404).json({ success: false, message: 'No active rental booking found between these users.' });
+      }
+
+      if (!booking) {
+          return res.status(404).json({ success: false, message: 'No active booking found between these users.' });
+      }
+
+      console.log('Active booking found:', booking);
+      res.status(200).json({ success: true, booking });
+  } catch (error) {
+      console.error('Error fetching active booking:', error);
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+
+
+
 router.patch("/update/:id", async (req, res) => {
   try {
     const { id } = req.params;

@@ -89,78 +89,151 @@ router.post("/now", async (req, res) => {
 
 
 router.post("/checkout", async (req, res) => {
-    try {
-      const { firebaseUID } = req.body;
-  
-      // 1. Get the consumer
-      const user = await User.findOne({ FirebaseUID: firebaseUID });
-      if (!user) return res.status(404).json({ message: "User not found" });
-  
-      // 2. Get user's cart
-      const cart = await Cart.findOne({ ConsumerID: user._id });
-      if (!cart || cart.Items.length === 0) {
-        return res.status(400).json({ message: "Cart is empty" });
-      }
-  
-      // 3. Check that all items are from the same provider
-      const providerIDSet = new Set(cart.Items.map(item => item.ProviderID.toString()));
-      if (providerIDSet.size > 1) {
-        return res.status(400).json({ message: "All items must be from the same provider to checkout." });
-      }
-  
-      const providerID = cart.Items[0].ProviderID;
-  
-      // 4. Create a Purchase entry for each item
-      const purchases = [];
-  
-      for (const item of cart.Items) {
-        const listing = await Listing.findById(item.ListingID);
-        if (!listing) continue;
-  
-        const newPurchase = new Purchase({
-          PurchaseID: `PUR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-          ConsumerID: user._id,
-          ProviderID: item.ProviderID,
-          ListingID: item.ListingID,
-          Price: item.Price,
-          Currency: item.Currency || "PKR",
-          Status: "Pending",
-          EscrowStatus: "Pending",
-          DatePurchased: new Date()
-        });
-  
-        await newPurchase.save();
-        purchases.push(newPurchase);
+  try {
+    const { firebaseUID, items } = req.body;
+    
+    // Validate inputs
+    if (!firebaseUID || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid request. FirebaseUID and items array are required." 
+      });
+    }
 
-        
-       // Update demand score for the listing
-      await updateDemandScore(listingID, "completedBooking");
-  
-        // 5. Notify provider
+    // 1. Get the consumer
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    // 2. Check if items are all from the same provider
+    const providerIds = new Set();
+    for (const item of items) {
+      if (!item.listingID) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Each item must have a listingID" 
+        });
+      }
+      
+      const listing = await Listing.findById(item.listingID);
+      if (!listing) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Listing with ID ${item.listingID} not found` 
+        });
+      }
+      
+      providerIds.add(listing.ProviderID.toString());
+    }
+    
+    if (providerIds.size > 1) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "All items must be from the same provider to checkout." 
+      });
+    }
+    
+    const providerID = Array.from(providerIds)[0];
+
+    // 3. Create a Purchase entry for each item
+    const purchases = [];
+    
+    for (const item of items) {
+      const listing = await Listing.findById(item.listingID);
+      if (!listing) continue;
+
+      // Calculate the price based on quantity
+      const itemPrice = item.price * (item.quantity || 1);
+
+      const newPurchase = new Purchase({
+        PurchaseID: `PUR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+        ConsumerID: user._id,
+        ProviderID: providerID,
+        ListingID: item.listingID,
+        Quantity: item.quantity || 1,
+        Price: itemPrice,
+        SecurityFee: item.securityFee || 0,
+        CancellationFee: item.cancellationFee || 0,
+        Currency: "PKR",
+        Status: "Pending",
+        EscrowStatus: "Pending",
+        DatePurchased: new Date()
+      });
+
+      await newPurchase.save();
+      purchases.push(newPurchase);
+
+      // Update demand score for the listing
+      try {
+        await updateDemandScore(item.listingID, "completedPurchase");
+      } catch (e) {
+        console.log("Error updating demand score:", e);
+      }
+
+      // 5. Notify provider
+      try {
         await new Notification({
           NotificationID: `N-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-          UserID: item.ProviderID,
-          Message: `A new purchase has been made for your listing: ${listing.Title}`,
+          UserID: providerID,
+          Message: `A new purchase has been made for your listing: ${listing.Name || listing.Title}`,
           Type: "Alert",
           ReadStatus: false,
           Timestamp: new Date()
         }).save();
+      } catch (e) {
+        console.log("Error creating notification:", e);
       }
-  
-      // 6. Clear the cart
-      cart.Items = [];
-      cart.LastUpdated = new Date();
-      await cart.save();
-  
-      res.status(200).json({
-        message: "Checkout successful",
-        purchases
-      });
-  
-    } catch (error) {
-      console.error("Checkout error:", error);
-      res.status(500).json({ message: "Server error", error });
     }
+
+    // 6. Clear items from the cart if they exist
+    try {
+      const cart = await Cart.findOne({ ConsumerID: user._id });
+      if (cart) {
+        console.log("Cart before removal:", cart.Items.map(item => item.ListingID.toString()));
+        
+        // Get the list of listing IDs purchased (normalize to strings)
+        const purchasedListingIds = items.map(item => item.listingID.toString());
+        console.log("Purchased listing IDs:", purchasedListingIds);
+        
+        // Filter out the purchased items with strict comparison
+        const originalLength = cart.Items.length;
+        cart.Items = cart.Items.filter(item => {
+          const itemListingIdString = item.ListingID.toString();
+          const shouldKeep = !purchasedListingIds.includes(itemListingIdString);
+          console.log(`Item ${itemListingIdString}: keep=${shouldKeep}`);
+          return shouldKeep;
+        });
+        
+        console.log(`Removed ${originalLength - cart.Items.length} items from cart`);
+        
+        // Only save if there were changes
+        if (originalLength !== cart.Items.length) {
+          cart.LastUpdated = new Date();
+          await cart.save();
+          console.log("Cart saved after removing purchased items");
+        } else {
+          console.log("No items were removed from cart");
+        }
+      } else {
+        console.log("No cart found to update");
+      }
+    } catch (e) {
+      console.error("Error updating cart:", e.message, e.stack);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Checkout successful",
+      purchases
+    });
+
+  } catch (error) {
+    console.error("Checkout error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error", 
+      error: error.message 
+    });
+  }
 });
 
 router.post("/cart/add", async (req, res) => {
@@ -338,6 +411,88 @@ router.delete("/cart/remove", async (req, res) => {
   }
 });
 
+router.patch("/cart/update-quantity", async (req, res) => {
+  try {
+    const { firebaseUID, listingID, quantity } = req.body;
+    console.log("Update cart quantity request:", { firebaseUID, listingID, quantity });
+
+    // Validate inputs
+    if (!firebaseUID || !listingID) {
+      return res.status(400).json({ message: "Missing firebaseUID or listingID" });
+    }
+
+    // Make sure quantity is a number
+    const numQuantity = parseInt(quantity, 10);
+    if (isNaN(numQuantity) || numQuantity < 1) {
+      return res.status(400).json({ message: "Quantity must be a positive integer" });
+    }
+
+    // Find the user
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) {
+      console.log("User not found for firebaseUID:", firebaseUID);
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Find the cart
+    const cart = await Cart.findOne({ ConsumerID: user._id });
+    if (!cart) {
+      console.log("Cart not found for user:", user._id);
+      return res.status(404).json({ message: "Cart not found" });
+    }
+
+    // Find the item in the cart
+    const itemIndex = cart.Items.findIndex(item => item.ListingID.toString() === listingID);
+    if (itemIndex === -1) {
+      console.log("Item not found in cart:", listingID);
+      return res.status(404).json({ message: "Item not found in cart" });
+    }
+
+    // Get the listing to ensure we have the correct base price
+    const listing = await Listing.findById(listingID);
+    if (!listing) {
+      return res.status(404).json({ message: "Listing not found" });
+    }
+
+    // Use the single item price from listing if first time, otherwise calculate from cart
+    const basePrice = listing.FixedPrice;
+    
+    // Update the item directly with $set for better MongoDB compatibility
+    const updateResult = await Cart.updateOne(
+      { 
+        ConsumerID: user._id, 
+        "Items.ListingID": new mongoose.Types.ObjectId(listingID) 
+      },
+      { 
+        $set: { 
+          "Items.$.Quantity": numQuantity,
+          "Items.$.Price": basePrice * numQuantity,
+          LastUpdated: new Date()
+        } 
+      }
+    );
+    
+    console.log("Update result:", updateResult);
+
+    // Fetch the updated cart to return in response
+    const updatedCart = await Cart.findOne({ ConsumerID: user._id });
+    const updatedItem = updatedCart.Items.find(item => 
+      item.ListingID.toString() === listingID
+    );
+    
+    console.log("Updated cart item:", updatedItem);
+
+    res.status(200).json({ 
+      message: "Cart item quantity updated", 
+      item: updatedItem,
+      cart: updatedCart 
+    });
+    
+  } catch (error) {
+    console.error("Update cart quantity error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
 
 router.patch("/complete-provider", async (req, res) => {
     try {

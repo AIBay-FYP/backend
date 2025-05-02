@@ -4,6 +4,7 @@ const itemSchema = new mongoose.Schema({
   ListingID: { type: mongoose.Schema.Types.ObjectId, ref: "Listings", required: true },
   ProviderID: { type: mongoose.Schema.Types.ObjectId, required: true },
   DateAdded: { type: Date, default: Date.now },
+  Quantity: { type: Number, default: 1 }, 
   // Optional fields
   Price: Number,
   Currency: { type: String, default: "PKR" }

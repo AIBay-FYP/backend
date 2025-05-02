@@ -1,12 +1,33 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/user");
+const { default: mongoose } = require("mongoose");
 
 router.get('/:firebaseUID', async (req, res) => {
     const { firebaseUID } = req.params;
   
     try {
       const user = await User.findOne({ FirebaseUID: firebaseUID });
+  
+      if (user) {
+        console.log('User found:', user);
+        res.status(200).json(user);
+      } else {
+        // User not found
+        res.status(404).json({ message: 'User not found' });
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      res.status(500).json({ message: 'Server error', error });
+    }
+  });
+
+
+  router.get('/id/:id', async (req, res) => {
+    const { id } = req.params;
+  
+    try {
+      const user = await User.findOne({ _id: new mongoose.Types.ObjectId(id) });
   
       if (user) {
         console.log('User found:', user);
