@@ -33,6 +33,6 @@ const VerificationSchema = new Schema({
     ref: 'User',
     required: true,
   },
-});
+},{collection: 'Documents'});
 
 module.exports = mongoose.model('Verification', VerificationSchema);
