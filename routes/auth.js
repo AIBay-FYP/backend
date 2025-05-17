@@ -1,6 +1,6 @@
 const express = require("express");
 const admin = require("../firebaseAdmin");
-const Category = require('../models/category');
+const Category = require('../models/Category');
 const mongoose = require("mongoose");
 const User = require("../models/user");
 const router = express.Router();
