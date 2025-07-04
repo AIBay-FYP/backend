@@ -105,6 +105,7 @@ router.post("/verifyUser", async (req, res) => {
 });
 
 
+// --1 this route is not updating the provider specific fields correctly
 router.patch("/updateUser/:firebaseUID", async (req, res) => {
     try {
         const { firebaseUID } = req.params;
@@ -145,6 +146,7 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
         }
 
         // Allow Provider-specific updates
+        // --1 prolly the issue is here
         if (role === "Provider") {
             if (CNIC) user.CNIC = CNIC;
             if (BusinessType) user.BusinessType = BusinessType;

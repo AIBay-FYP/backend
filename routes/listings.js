@@ -369,54 +369,54 @@ router.get("/search", async (req, res) => {
   try {
     const { query, category, minPrice, maxPrice, location } = req.query;
 
+    console.log("Received search query:", req.query);
+
     let filter = {};
 
-    // Full-text search on product name and description
     if (query) {
       filter.$or = [
-        { title: { $regex: query, $options: "i" } }, // Case-insensitive title search
-        { description: { $regex: query, $options: "i" } }, // Case-insensitive description search
-        { keywords: { $in: query.split(" ") } }, // Matches any keyword in the array
-      ].sort({ DemandScore: -1 });;
+        { title: { $regex: query, $options: "i" } },
+        { description: { $regex: query, $options: "i" } },
+        { keywords: { $in: query.split(" ") } },
+      ];
     }
 
-    // Filter by category
     if (category) {
       filter.category = category;
     }
 
-    // Filter by price range
     if (minPrice && maxPrice) {
       filter.$or = [
-        { fixedPrice: { $gte: minPrice, $lte: maxPrice } },
-        { minPrice: { $gte: minPrice }, maxPrice: { $lte: maxPrice } }
+        { fixedPrice: { $gte: Number(minPrice), $lte: Number(maxPrice) } },
+        { minPrice: { $gte: Number(minPrice) }, maxPrice: { $lte: Number(maxPrice) } }
       ];
     } else if (minPrice) {
       filter.$or = [
-        { fixedPrice: { $gte: minPrice } },
-        { minPrice: { $gte: minPrice } }
+        { fixedPrice: { $gte: Number(minPrice) } },
+        { minPrice: { $gte: Number(minPrice) } }
       ];
     } else if (maxPrice) {
       filter.$or = [
-        { fixedPrice: { $lte: maxPrice } },
-        { maxPrice: { $lte: maxPrice } }
+        { fixedPrice: { $lte: Number(maxPrice) } },
+        { maxPrice: { $lte: Number(maxPrice) } }
       ];
     }
 
-    // Filter by location 
     if (location) {
       filter.location = { $regex: location, $options: "i" };
     }
 
-    // Execute the search
-    const listings = await Listing.find(filter);
+    console.log("Final MongoDB Filter:", filter);
+
+    const listings = await Listing.find(filter);  // <== CRASH LIKELY HERE
 
     res.json({ success: true, data: listings });
   } catch (error) {
-    console.error(error);
+    console.error("Search API Error:", error);  // <- Show the real error!
     res.status(500).json({ success: false, message: "Server Error" });
   }
 });
+
 
 // Create a new listing
 router.post("/", async (req, res) => {
