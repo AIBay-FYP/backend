@@ -39,43 +39,42 @@ router.get('/contracts/:contractId', async (req, res) => {
 });
 
 router.get('/booking/:bookingId', async (req, res) => {
-    try {
-      const { bookingId } = req.params;
-      console.log('Booking ID:', bookingId);
+  try {
+    const { bookingId } = req.params;
+    console.log('Booking ID:', bookingId);
 
-      // Find the booking based on the BookingID and populate the ListingID to get serviceType
-      const booking = await Booking.findOne({ 
-        _id: new mongoose.Types.ObjectId(bookingId)
-      })
-      .populate('ListingID');  // Populate to access serviceType
-      console.log('Booking found:', booking);
-      
-      if (!booking) {
-        return res.status(404).json({ success: false, message: "Booking not found." });
-      }
+    const booking = await Booking.findOne({ 
+      _id: new mongoose.Types.ObjectId(bookingId)
+    })
+    .populate('ListingID', 'serviceType');  // Select only serviceType
 
-      // Check if the serviceType is 'Rent'
-      if (booking.ListingID.serviceType !== 'Rent') {
-        return res.status(404).json({ success: false, message: "This is not a rental booking." });
-      }
-
-      // Find the contract associated with the booking
-      const contract = await Contract.findOne({ BookingID: booking._id });
-  
-      if (!contract) {
-        return res.status(404).json({ success: false, message: "No contract found for this booking." });
-      }
-  
-      console.log('Contract found:', contract);
-
-      return res.status(200).json({
-        success: true,
-        contract
-      });
-    } catch (error) {
-      console.error('Error fetching contract for booking:', error);
-      return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    console.log('Booking found:', booking);
+    
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found." });
     }
+
+    const serviceType = (booking.ListingID?.serviceType || '').trim().toLowerCase();
+    if (serviceType !== 'rent') {
+      return res.status(404).json({ success: false, message: "This is not a rental booking." });
+    }
+
+    const contract = await Contract.findOne({ BookingID: booking._id });
+
+    if (!contract) {
+      return res.status(404).json({ success: false, message: "No contract found for this booking." });
+    }
+
+    console.log('Contract found:', contract);
+
+    return res.status(200).json({
+      success: true,
+      contract
+    });
+  } catch (error) {
+    console.error('Error fetching contract for booking:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
 });
 
 
