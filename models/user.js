@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   Location: { type: String, required: true },
   ContactNumber: { type: String, required: true }, // Added as required field
   Rating: { type: Number, default: 4.0 },
+  TotalRatings: { type: Number, default: 0 },
   RoleType: { 
     type: String, 
     enum: ['Consumer', 'Provider','User'], 
