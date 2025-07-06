@@ -96,6 +96,20 @@ router.post("/request", async (req, res) => {
     await notification.save();
     console.log("Notification saved");
 
+    if (provider.FCMToken) {
+  await sendNotification({
+    token: provider.fcm_token,
+    title: "New Booking Request",
+    body: `You have a new booking request for "${listing.Title}"`,
+    data: {
+      type: "Booking",
+      listingId: listing._id.toString(),
+      bookingId: booking._id.toString(),
+    }
+  });
+}
+
+
     return res.status(201).json({
       success: true,
       message: "Booking requested successfully.",
