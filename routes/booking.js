@@ -96,7 +96,7 @@ router.post("/request", async (req, res) => {
     await notification.save();
     console.log("Notification saved");
 
-    if (provider.FCMToken) {
+    if (provider.fcm_token) {
   await sendNotification({
     token: provider.fcm_token,
     title: "New Booking Request",
