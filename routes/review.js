@@ -64,17 +64,47 @@ router.post("/:firebaseUID/:reviewedUserId", async (req, res) => {
 });
 
 // @route   GET /reviews/user/:userId
-// @desc    Get all reviews for a specific user
+// @desc    Get all reviews for a specific user (userId is firebaseUID)
 router.get("/user/:userId", async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const reviews = await Review.find({ ReviewedUserID: userId })
-      .populate("ReviewerID", "Name")
-      .sort({ Timestamp: -1 });
+    // Find the user by firebaseUID
+    const user = await User.findOne({ FirebaseUID: userId });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
+    // Find reviews for this user
+    const reviews = await Review.find({ ReviewedUserID: user._id })
+      .populate("ReviewerID", "Name ProfilePicture")
+      .sort({ Timestamp: -1 })
+      .lean();
+
+    // Prepare detailed review info
+    const reviewDetails = reviews.map(r => ({
+      reviewID: r.ReviewID,
+      rating: r.Rating,
+      comment: r.Comment,
+      timestamp: r.Timestamp,
+      reviewer: r.ReviewerID ? {
+        name: r.ReviewerID.Name,
+        profilePicture: r.ReviewerID.ProfilePicture,
+        id: r.ReviewerID._id
+      } : null,
+      bookingID: r.BookingID
+    }));
+
+    console.log("Review details:", reviewDetails);
     res.status(200).json({
-      reviews,
+      user: {
+        id: user._id,
+        name: user.Name,
+        profilePicture: user.ProfilePicture,
+        rating: user.Rating,
+        totalRatings: user.TotalRatings
+      },
+      reviews: reviewDetails
     });
   } catch (error) {
     console.error("Error fetching reviews:", error);

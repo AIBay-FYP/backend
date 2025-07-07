@@ -631,60 +631,78 @@ router.get("/", async (req, res) => {
 // Get the most recent listings
 router.get("/recent", async (req, res) => {
   try {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Helper to fetch recent listings for a given date window
+    const fetchRecentListings = async (daysAgo) => {
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - daysAgo);
 
-    // Fetch recent listings with 'Approved' status in ComplianceLog
-    const approvedListings = await Listing.aggregate([
-      {
-        $lookup: {
-          from: "ComplianceLog",
-          localField: "_id",
-          foreignField: "ListingID",
-          as: "complianceLogs",
-        },
-      },
-      {
-        $match: {
-          complianceLogs: {
-            $elemMatch: { Status: "Approved" },
+      // Fetch recent listings with 'Approved' status in ComplianceLog
+      const approvedListings = await Listing.aggregate([
+        {
+          $lookup: {
+            from: "ComplianceLog",
+            localField: "_id",
+            foreignField: "ListingID",
+            as: "complianceLogs",
           },
-          DatePosted: { $gte: sevenDaysAgo },
         },
-      },
-      {
-        $project: {
-          complianceLogs: 0, // Exclude the complianceLogs field
+        {
+          $match: {
+            complianceLogs: {
+              $elemMatch: { Status: "Approved" },
+            },
+            DatePosted: { $gte: sinceDate },
+          },
         },
-      },
-    ]);
+        {
+          $project: {
+            complianceLogs: 0,
+          },
+        },
+      ]);
 
-    // Fetch recent listings not present in ComplianceLog
-    const unloggedListings = await Listing.aggregate([
-      {
-        $lookup: {
-          from: "ComplianceLog",
-          localField: "_id",
-          foreignField: "ListingID",
-          as: "complianceLogs",
+      // Fetch recent listings not present in ComplianceLog
+      const unloggedListings = await Listing.aggregate([
+        {
+          $lookup: {
+            from: "ComplianceLog",
+            localField: "_id",
+            foreignField: "ListingID",
+            as: "complianceLogs",
+          },
         },
-      },
-      {
-        $match: {
-          complianceLogs: { $size: 0 },
-          DatePosted: { $gte: sevenDaysAgo },
+        {
+          $match: {
+            complianceLogs: { $size: 0 },
+            DatePosted: { $gte: sinceDate },
+          },
         },
-      },
+        {
+          $project: {
+            complianceLogs: 0,
+          },
+        },
+      ]);
 
-      {
-        $project: {
-          complianceLogs: 0, // Exclude the complianceLogs field
-        },
-      },
-    ]);
+      return [...approvedListings, ...unloggedListings];
+    };
 
-    // Combine both results
-    const recentListings = [...approvedListings, ...unloggedListings];
+    // Try 7, then 14, then 30 days
+    let recentListings = await fetchRecentListings(7);
+    if (recentListings.length === 0) {
+      recentListings = await fetchRecentListings(14);
+    }
+    if (recentListings.length === 0) {
+      recentListings = await fetchRecentListings(30);
+    }
+
+    // Fallback: return 10 most recent listings if still empty
+    if (recentListings.length === 0) {
+      recentListings = await Listing.find({})
+        .sort({ DatePosted: -1 })
+        .limit(10)
+        .lean();
+    }
 
     return res.status(200).json(recentListings);
   } catch (error) {
