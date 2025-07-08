@@ -158,6 +158,7 @@ router.get('/between/:consumerId/:providerId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'No active rental bookings found between these users.' });
     }
 
+    
     res.status(200).json({ success: true, bookings: filteredBookings });
   } catch (error) {
     console.error('Error fetching bookings:', error);
@@ -542,6 +543,19 @@ router.patch("/confirm/:id", async (req, res) => {
     });
 
     await notification.save();
+
+  if (booking.ConsumerID.fcm_token) {
+    await sendNotification({
+      token: provider.fcm_token,
+      title: "New Booking Request",
+      body: `You have a new booking request for "${listing.Title}"`,
+      data: {
+        type: "Booking",
+        listingId: listing._id.toString(),
+        bookingId: booking._id.toString(),
+      }
+    });
+  }
 
     res.status(200).json({
       success: true,
