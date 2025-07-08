@@ -3,6 +3,7 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const Dispute = require("../models/dispute");
 const User = require("../models/user");
+const Contract = require("../models/contract");
 
 // Helper to generate dispute ID
 const generateDisputeID = async () => {
@@ -10,34 +11,27 @@ const generateDisputeID = async () => {
   return "D" + (count + 1).toString().padStart(3, "0");
 };
 
-// @route   POST /disputes/:firebaseUID
-// @desc    Create a new dispute for a booking
 router.post("/:firebaseUID", async (req, res) => {
-  const { firebaseUID } = req.params;
-  const { bookingId, title, description, evidence = [] } = req.body;
-
-  console.log("[DEBUG] Starting dispute creation", {
-    firebaseUID,
-    bookingId,
-    title,
-    description,
-    evidenceLength: evidence.length
-  });
-
   try {
-    console.log("[DEBUG] Looking up user with FirebaseUID:", firebaseUID);
+    const {
+      bookingId,
+      title,
+      description,
+      evidence,
+      contractId,
+      natureOfDispute
+    } = req.body;
+    const { firebaseUID } = req.params;
     const user = await User.findOne({ FirebaseUID: firebaseUID });
+
+
     if (!user) {
       console.log("[DEBUG] User not found for FirebaseUID:", firebaseUID);
       return res.status(404).json({ message: "User not found" });
     }
-    console.log("[DEBUG] User found:", { userId: user._id, name: user.Name });
-
-    console.log("[DEBUG] Generating dispute ID");
     const disputeID = await generateDisputeID();
-    console.log("[DEBUG] Generated dispute ID:", disputeID);
 
-    console.log("[DEBUG] Creating new dispute document");
+    // Create dispute with empty comment
     const dispute = new Dispute({
       DisputeID: disputeID,
       BookingID: new mongoose.Types.ObjectId(bookingId),
@@ -45,22 +39,24 @@ router.post("/:firebaseUID", async (req, res) => {
       Description: description,
       Evidence: evidence,
       CreatedBy: user._id,
+      Comment: "" // Always empty on creation
     });
 
-    console.log("[DEBUG] Saving dispute to database");
     await dispute.save();
-    console.log("[DEBUG] Dispute successfully created:", {
-      disputeID,
-      bookingId,
-      createdBy: user._id
-    });
+
+    console.log("Dispute created with ID:", disputeID);
+    console.log("Dispute Nature:", natureOfDispute);
+    // Update contract's DisputeNature
+    if (contractId && natureOfDispute) {
+      await Contract.findOneAndUpdate(
+        { ContractID:  contractId },
+        { DisputeNature: natureOfDispute }
+      );
+    }
+    console.log("Dispute created:", dispute);
 
     res.status(201).json({ message: "Dispute created", dispute });
   } catch (error) {
-    console.error("[DEBUG] Error creating dispute:", {
-      error: error.message,
-      stack: error.stack
-    });
     res.status(500).json({ message: "Server error", error });
   }
 });
@@ -108,6 +104,32 @@ router.patch("/:disputeId/resolve", async (req, res) => {
     res.status(200).json({ message: "Dispute resolved", dispute });
   } catch (error) {
     console.error("Error resolving dispute:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// GET /disputes/:bookingId
+router.get("/:bookingId", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const disputes = await Dispute.find({ BookingID: bookingId }).lean();
+
+    // Always include comment in response
+    const response = disputes.map(d => ({
+      disputeID: d.DisputeID,
+      title: d.Title,
+      description: d.Description,
+      date: d.Date,
+      createdBy: d.CreatedBy,
+      resolvedBy: d.ResolvedBy,
+      status: d.Status,
+      resolutionAction: d.ResolutionAction,
+      evidence: d.Evidence,
+      comment: d.Comment // Include comment
+    }));
+
+    res.status(200).json(response);
+  } catch (error) {
     res.status(500).json({ message: "Server error", error });
   }
 });

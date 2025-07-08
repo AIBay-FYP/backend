@@ -10,7 +10,8 @@ const disputeSchema = new mongoose.Schema({
   ResolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   Status: { type: String, enum: ["Pending", "Resolved", "Rejected"], default: "Pending" },
   ResolutionAction: { type: String },
-  Evidence: [String] // Array of image URLs
+  Evidence: [String], // Array of image URLs
+  Comment: { type: String, default: "" }
 },{
   collection: "Dispute",
 });

@@ -123,7 +123,7 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found." });
         }
 
-        // Ensure role matches the existing user
+        // // Ensure role matches the existing user
         if (role) {
             user.RoleType = role;
         }
@@ -153,7 +153,7 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
             if (Services) user.Services = Services;
         }
 
-        user.UpdatedAt = new Date();
+        user.updatedAt= new Date();
         await user.save();
 
         return res.status(200).json({ success: true, message: "User updated successfully", user });
@@ -186,7 +186,7 @@ router.patch("/consumer/:firebaseUID", async (req, res) => {
             user.Interests = validInterests;
         }
 
-        user.UpdatedAt = new Date();
+        user.updatedAt = new Date();
         await user.save();
 
         return res.status(200).json({ success: true, message: "Consumer profile updated successfully", user });

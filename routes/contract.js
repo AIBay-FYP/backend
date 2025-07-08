@@ -325,6 +325,7 @@ router.get('/contracts/:contractId/status', async (req, res) => {
       consumerSignedUrl: contract.ConsumerSignedUrl,
       providerSignedUrl: contract.ProviderSignedUrl,
       finalMergedUrl: contract.FinalMergedUrl,
+      disputeNature: contract.DisputeNature, // <-- Added field
       dateCreated: contract.createdAt || contract.Timestamp,
       lastUpdated: contract.updatedAt || contract.Timestamp,
       bookingDates: {
