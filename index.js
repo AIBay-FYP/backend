@@ -16,6 +16,8 @@ const provider_tabs = require("./routes/provider_tabs")
 const dashboardRoutes = require('./routes/provider_dashboard');
 const favorites = require("./routes/favorites")
 const contracts = require("./routes/contract")
+const reviews = require("./routes/review");
+const dispute = require("./routes/dispute");
 
 dotenv.config();
 
@@ -42,6 +44,8 @@ app.use("/dashboard", dashboardRoutes);
 app.use("/favorites", favorites);
 app.use("/provider", provider_tabs);
 app.use("/contract", contracts);
+app.use('/reviews', reviews); 
+app.use('/dispute', dispute); 
 
 
 

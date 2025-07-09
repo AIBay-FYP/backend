@@ -1,6 +1,6 @@
 const express = require("express");
 const admin = require("../firebaseAdmin");
-const Category = require('../models/category');
+const Category = require('../models/Category');
 const mongoose = require("mongoose");
 const User = require("../models/user");
 const router = express.Router();
@@ -105,6 +105,7 @@ router.post("/verifyUser", async (req, res) => {
 });
 
 
+// --1 this route is not updating the provider specific fields correctly
 router.patch("/updateUser/:firebaseUID", async (req, res) => {
     try {
         const { firebaseUID } = req.params;
@@ -122,7 +123,7 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found." });
         }
 
-        // Ensure role matches the existing user
+        // // Ensure role matches the existing user
         if (role) {
             user.RoleType = role;
         }
@@ -145,13 +146,14 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
         }
 
         // Allow Provider-specific updates
+        // --1 prolly the issue is here
         if (role === "Provider") {
             if (CNIC) user.CNIC = CNIC;
             if (BusinessType) user.BusinessType = BusinessType;
             if (Services) user.Services = Services;
         }
 
-        user.UpdatedAt = new Date();
+        user.updatedAt= new Date();
         await user.save();
 
         return res.status(200).json({ success: true, message: "User updated successfully", user });
@@ -184,7 +186,7 @@ router.patch("/consumer/:firebaseUID", async (req, res) => {
             user.Interests = validInterests;
         }
 
-        user.UpdatedAt = new Date();
+        user.updatedAt = new Date();
         await user.save();
 
         return res.status(200).json({ success: true, message: "Consumer profile updated successfully", user });

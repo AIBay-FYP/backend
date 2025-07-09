@@ -162,6 +162,16 @@ router.post("/checkout", async (req, res) => {
       await newPurchase.save();
       purchases.push(newPurchase);
 
+       // Update the listing's quantity
+       const newQuantity = Math.max(0, listing.Qunatity - requestedQuantity);
+       inventoryUpdates.push(
+         Listing.findByIdAndUpdate(
+           item.listingID,
+           { $set: { Qunatity: newQuantity } },
+           { new: true }
+         )
+       );
+
       // Update demand score for the listing
       try {
         await updateDemandScore(item.listingID, "completedPurchase");
@@ -183,6 +193,9 @@ router.post("/checkout", async (req, res) => {
         console.log("Error creating notification:", e);
       }
     }
+
+    await Promise.all(inventoryUpdates);
+    console.log("All inventory quantities updated successfully");
 
     // 6. Clear items from the cart if they exist
     try {

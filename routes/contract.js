@@ -39,45 +39,48 @@ router.get('/contracts/:contractId', async (req, res) => {
 });
 
 router.get('/booking/:bookingId', async (req, res) => {
-    try {
-      const { bookingId } = req.params;
-      console.log('Booking ID:', bookingId);
+  try {
+    const { bookingId } = req.params;
+    console.log('Booking ID:', bookingId);
 
-      // Find the booking based on the BookingID and populate the ListingID to get serviceType
-      const booking = await Booking.findOne({ 
-        _id: new mongoose.Types.ObjectId(bookingId)
-      })
-      .populate('ListingID');  // Populate to access serviceType
-      console.log('Booking found:', booking);
-      
-      if (!booking) {
-        return res.status(404).json({ success: false, message: "Booking not found." });
-      }
+    // Find the booking and populate the ListingID to access ServiceType
+    const booking = await Booking.findOne({ 
+      _id: new mongoose.Types.ObjectId(bookingId)
+    }).populate('ListingID', 'ServiceType');  // <- Correct casing here
 
-      // Check if the serviceType is 'Rent'
-      if (booking.ListingID.serviceType !== 'Rent') {
-        return res.status(404).json({ success: false, message: "This is not a rental booking." });
-      }
+    console.log('Booking found:', booking);
 
-      // Find the contract associated with the booking
-      const contract = await Contract.findOne({ BookingID: booking._id });
-  
-      if (!contract) {
-        return res.status(404).json({ success: false, message: "No contract found for this booking." });
-      }
-  
-      console.log('Contract found:', contract);
-
-      return res.status(200).json({
-        success: true,
-        contract
-      });
-    } catch (error) {
-      console.error('Error fetching contract for booking:', error);
-      return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found." });
     }
-});
 
+    // Access populated ServiceType with correct casing
+    const serviceType = (booking.ListingID?.ServiceType || '').trim().toLowerCase();
+    console.log('Service Type:', serviceType);
+
+    if (serviceType !== 'rent') {
+      return res.status(404).json({ success: false, message: "This is not a rental booking." });
+    }
+
+    // Find the contract linked to this booking
+    const contract = await Contract.findOne({ BookingID: booking._id });
+
+    if (!contract) {
+      return res.status(404).json({ success: false, message: "No contract found for this booking." });
+    }
+
+    console.log('Contract found:', contract);
+
+    return res.status(200).json({
+      success: true,
+      contract
+    });
+
+  } catch (error) {
+    console.error('Error fetching contract for booking:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
 
 router.post('/generate-contract', async (req, res) => {
     const {
@@ -291,6 +294,54 @@ router.post('/upload-signed', upload.single('signedFile'), async (req, res) => {
         console.error('Error in upload-signed:', error);
         res.status(500).json({ success: false, message: `Failed to upload signed contract: ${error.message}` });
     }
+});
+
+
+// GET /contracts/:contractId/status
+router.get('/contracts/:contractId/status', async (req, res) => {
+  const { contractId } = req.params;
+  console.log('Fetching contract status for ID:', contractId);
+
+  try {
+    const contract = await Contract.findOne({ ContractID: contractId });
+    console.log('Fetched contract:', contract);
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract not found'
+      });
+    }
+
+    // Optional: populate Booking for date logic if needed
+    const booking = await Booking.findById(contract.BookingID);
+
+    return res.status(200).json({
+      success: true,
+      contractId: contract.ContractID,
+      status: contract.Status,
+      consumerSigned: contract.ConsumerApproved,
+      providerSigned: contract.ProviderApproved,
+      documentUrl: contract.DocumentURL,
+      consumerSignedUrl: contract.ConsumerSignedUrl,
+      providerSignedUrl: contract.ProviderSignedUrl,
+      finalMergedUrl: contract.FinalMergedUrl,
+      disputeNature: contract.DisputeNature, // <-- Added field
+      dateCreated: contract.createdAt || contract.Timestamp,
+      lastUpdated: contract.updatedAt || contract.Timestamp,
+      bookingDates: {
+        startDate: booking?.StartDate,
+        endDate: booking?.EndDate,
+        price: booking?.Price
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching contract status:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
 });
 
 module.exports = router;
