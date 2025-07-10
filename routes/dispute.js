@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const Dispute = require("../models/dispute");
 const User = require("../models/user");
 const Contract = require("../models/contract");
+const sendNotification = require("../utils/sendNotification");
 
 // Helper to generate dispute ID
 const generateDisputeID = async () => {
@@ -74,11 +75,45 @@ router.get("/booking/:bookingId", async (req, res) => {
 });
 
 // @route   GET /disputes/user/:userId
-// @desc    Get all disputes created by a user
+// @desc    Get all disputes created by a user and send notification if any status has changed
 router.get("/user/:userId", async (req, res) => {
   try {
     const user = await User.findOne({ FirebaseUID: req.params.userId });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
     const disputes = await Dispute.find({ CreatedBy: user._id }).sort({ Date: -1 });
+
+    // Send notification for disputes with updated status (not "Pending")
+    for (const dispute of disputes) {
+      if (dispute.Status && dispute.Status !== "Pending") {
+        // Create in-app notification
+        const Notification = require("../models/Notification");
+        await new Notification({
+          NotificationID: `N${Date.now()}`,
+          UserID: user._id,
+          Message: `Your dispute "${dispute.Title}" status updated to "${dispute.Status}".`,
+          Type: "Dispute",
+          ReadStatus: false,
+          Timestamp: new Date()
+        }).save();
+
+        // Send FCM notification if user has fcm_token
+        if (user.fcm_token) {
+          await sendNotification({
+            token: user.fcm_token,
+            title: "Dispute Status Update",
+            body: `Your dispute "${dispute.Title}" status updated to "${dispute.Status}".`,
+            data: {
+              type: "Dispute",
+              disputeId: dispute.DisputeID,
+              status: dispute.Status
+            }
+          });
+        }
+      }
+    }
+
     res.status(200).json({ disputes });
   } catch (error) {
     console.error("Error fetching user disputes:", error);

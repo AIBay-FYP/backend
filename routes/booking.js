@@ -413,6 +413,41 @@ router.patch("/cancel/:id", async (req, res) => {
       Timestamp: new Date()
     }).save();
 
+    await new Notification({
+      NotificationID: `N-${Date.now() + 1}`,
+      UserID: booking.ConsumerID,
+      Message: `You have cancelled the booking for "${booking.ListingID.Title}".`,
+      Type: "Alert",
+      ReadStatus: false,
+      Timestamp: new Date()
+    }).save();
+
+    // FCM notifications
+    if (booking.ProviderID.fcm_token) {
+      await sendNotification({
+        token: booking.ProviderID.fcm_token,
+        title: "Booking Cancelled",
+        body: `A booking for "${booking.ListingID.Title}" has been cancelled.`,
+        data: {
+          type: "Booking",
+          listingId: booking.ListingID._id.toString(),
+          bookingId: booking._id.toString(),
+        }
+      });
+    }
+    if (booking.ConsumerID.fcm_token) {
+      await sendNotification({
+        token: booking.ConsumerID.fcm_token,
+        title: "Booking Cancelled",
+        body: `You have cancelled your booking for "${booking.ListingID.Title}".`,
+        data: {
+          type: "Booking",
+          listingId: booking.ListingID._id.toString(),
+          bookingId: booking._id.toString(),
+        }
+      });
+    }
+
     res.status(200).json({
       message: `Booking cancelled. Cancellation fee: ${cancellationFee}`,
       cancellationFee,
@@ -467,6 +502,32 @@ router.patch("/complete/:id", async (req, res) => {
         ReadStatus: false,
         Timestamp: new Date()
       }).save();
+
+      // FCM notifications
+      if (booking.ConsumerID.fcm_token) {
+        await sendNotification({
+          token: booking.ConsumerID.fcm_token,
+          title: "Booking Completed",
+          body: `Your booking for "${booking.ListingID.Title}" is marked as completed.`,
+          data: {
+            type: "Booking",
+            listingId: booking.ListingID._id.toString(),
+            bookingId: booking._id.toString(),
+          }
+        });
+      }
+      if (booking.ProviderID.fcm_token) {
+        await sendNotification({
+          token: booking.ProviderID.fcm_token,
+          title: "Booking Completed",
+          body: `Booking for "${booking.ListingID.Title}" is marked as completed.`,
+          data: {
+            type: "Booking",
+            listingId: booking.ListingID._id.toString(),
+            bookingId: booking._id.toString(),
+          }
+        });
+      }
     }
 
     
@@ -547,11 +608,11 @@ router.patch("/confirm/:id", async (req, res) => {
   if (booking.ConsumerID.fcm_token) {
     await sendNotification({
       token: provider.fcm_token,
-      title: "New Booking Request",
-      body: `You have a new booking request for "${listing.Title}"`,
+      title: "Booking Confirmation",
+      body: `The booking has been confirmed for "${booking.ListingID.Title}"`,
       data: {
         type: "Booking",
-        listingId: listing._id.toString(),
+        listingId: booking.ListingID.toString(),
         bookingId: booking._id.toString(),
       }
     });
