@@ -327,7 +327,7 @@ async function generateLogID() {
 // });
 
 // Get listings by id
-router.get("/id/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
