@@ -327,7 +327,7 @@ async function generateLogID() {
 // });
 
 // Get listings by id
-router.get("/id/:id", async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -567,6 +567,54 @@ router.put("/:id", async (req, res) => {
 });
 
 module.exports = router;
+
+
+
+
+// Update a listing by ID
+router.put('/:id', async (req, res) => {
+  try {
+    const {
+      Title,
+      Description,
+      Location,
+      FixedPrice,
+      Quantity,
+      RentalDays,
+      SecurityFee,
+      CancellationFee,
+      MinPrice,
+      MaxPrice,
+      Availability
+    } = req.body;
+
+    const updated = await Listings.findByIdAndUpdate(
+      req.params.id,
+      {
+        Title,
+        Description,
+        Location,
+        FixedPrice,
+        Quantity,
+        RentalDays,
+        SecurityFee,
+        CancellationFee,
+        MinPrice,
+        MaxPrice,
+        Availability
+      },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: 'Listing not found' });
+    }
+
+    res.json({ message: 'Listing updated', listing: updated });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
 
 
 // Get all listings
