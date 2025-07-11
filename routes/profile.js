@@ -55,6 +55,7 @@ router.get("/provider/:firebaseUID", async (req, res) => {
         CNIC: provider.CNIC,
         Location: provider.Location,
         BusinessType: provider.BusinessType ?? "Hello",
+        Services: provider.Services || [],
       },
       listings,
       reviews,
@@ -109,12 +110,20 @@ router.put("/provider/:firebaseUID", async (req, res) => {
 
     if (!provider) return res.status(404).json({ message: "Provider not found" });
 
+    // CNIC uniqueness check
+    if (CNIC) {
+      const existingCNICUser = await User.findOne({ CNIC, _id: { $ne: provider._id } });
+      if (existingCNICUser) {
+        return res.status(400).json({ message: "This CNIC already exists and cannot be handled." });
+      }
+      provider.CNIC = CNIC;
+    }
+
     // Update fields if provided
     if (Email) provider.Email = Email;
     if (Name) provider.Name = Name;
     if (ContactNumber) provider.ContactNumber = ContactNumber;
     if (Location) provider.Location = Location;
-    if (CNIC) provider.CNIC = CNIC;
     if (BusinessType) provider.BusinessType = BusinessType;
     if (Services) provider.Services = Services;
     if (Interests) provider.Interests = Interests;

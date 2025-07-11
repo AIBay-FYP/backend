@@ -109,11 +109,9 @@ router.post("/verifyUser", async (req, res) => {
 router.patch("/updateUser/:firebaseUID", async (req, res) => {
     try {
         const { firebaseUID } = req.params;
-        console.log(firebaseUID);
         const { role } = req.query;
         const { Name, Email, ContactNumber, Location, CNIC, BusinessType, Services, Interests, updateInterests } = req.body;
-        console.log(ContactNumber);
-        console.log(Interests);
+
         if (!role) {
             return res.status(400).json({ success: false, message: "Role is required as a query parameter." });
         }
@@ -123,7 +121,7 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found." });
         }
 
-        // // Ensure role matches the existing user
+        // Ensure role matches the existing user
         if (role) {
             user.RoleType = role;
         }
@@ -137,23 +135,29 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
         // Handle Interests update correctly
         if (Array.isArray(Interests)) {
             if (updateInterests === "overwrite") {
-                user.Interests = Interests; // Overwrite entire Interests array
+                user.Interests = Interests;
             } else if (updateInterests === "add") {
-                user.Interests = [...new Set([...user.Interests, ...Interests])]; // Merge without duplicates
+                user.Interests = [...new Set([...user.Interests, ...Interests])];
             } else if (updateInterests === "remove") {
-                user.Interests = user.Interests.filter(interest => !Interests.includes(interest)); // Remove specified interests
+                user.Interests = user.Interests.filter(interest => !Interests.includes(interest));
             }
         }
 
-        // Allow Provider-specific updates
-        // --1 prolly the issue is here
+        // Provider-specific updates with CNIC uniqueness check
         if (role === "Provider") {
-            if (CNIC) user.CNIC = CNIC;
+            if (CNIC) {
+                // Check if CNIC already exists for another user
+                const existingCNICUser = await User.findOne({ CNIC, _id: { $ne: user._id } });
+                if (existingCNICUser) {
+                    return res.status(400).json({ success: false, message: "This CNIC already exists and cannot be handled." });
+                }
+                user.CNIC = CNIC;
+            }
             if (BusinessType) user.BusinessType = BusinessType;
             if (Services) user.Services = Services;
         }
 
-        user.updatedAt= new Date();
+        user.updatedAt = new Date();
         await user.save();
 
         return res.status(200).json({ success: true, message: "User updated successfully", user });
@@ -162,7 +166,7 @@ router.patch("/updateUser/:firebaseUID", async (req, res) => {
         res.status(500).json({ success: false, message: "Internal server error." });
     }
 });
-module.exports = router;
+
 
 router.patch("/consumer/:firebaseUID", async (req, res) => {
     try {
@@ -225,3 +229,5 @@ router.patch("/provider/:firebaseUID", async (req, res) => {
         res.status(500).json({ success: false, message: "Internal server error." });
     }
 });
+
+module.exports = router;
