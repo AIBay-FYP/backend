@@ -425,7 +425,8 @@ router.put('/edit/:id', async (req, res) => {
       CancellationFee,
       MinPrice,
       MaxPrice,
-      Availability
+      Availability,
+      Photos
     } = req.body;
 
     // Validate the ID
@@ -447,7 +448,8 @@ router.put('/edit/:id', async (req, res) => {
         CancellationFee,
         MinPrice,
         MaxPrice,
-        Availability
+        Availability,
+        Photos,
       },
       { new: true }
     );
