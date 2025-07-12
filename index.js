@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const Listing = require("./models/Listings");
 const authRoutes = require('./routes/auth');
 const listings = require("./routes/listings");
 const profileRoutes = require("./routes/profile");
@@ -18,6 +19,7 @@ const favorites = require("./routes/favorites")
 const contracts = require("./routes/contract")
 const reviews = require("./routes/review");
 const dispute = require("./routes/dispute");
+const { listingCoordsCache, initializeListingCoordsCache } = require("./listingCache");
 
 dotenv.config();
 
@@ -48,12 +50,12 @@ app.use('/reviews', reviews);
 app.use('/dispute', dispute); 
 
 
-
 mongoose.connect(process.env.MONGO_URI)
-.then(() => console.log("MongoDB Connected"))
+.then(() => {
+  console.log("MongoDB Connected");
+  initializeListingCoordsCache(); // call after DB is ready
+})
 .catch((err) => console.error("MongoDB connection error:", err));
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT,'0.0.0.0', () => console.log(`Server running on port ${PORT}`));
-
