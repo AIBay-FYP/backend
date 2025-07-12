@@ -449,6 +449,7 @@ router.post("/", async (req, res) => {
       Quantity,
     } = req.body;
 
+    console.log("Creating new listing with data:", req.body);
     const ListingID = await generateListingID();
 
     // Fetch the user by FirebaseUID
@@ -484,8 +485,10 @@ router.post("/", async (req, res) => {
       RentalDays,
       Currency,
       Documents,
-      Quantity,
+      Quantity: Quantity || 1, // Default to 1 if not provided
     });
+
+    console.log("New Listing:", newListing);
 
     // Save the listing
     await newListing.save();

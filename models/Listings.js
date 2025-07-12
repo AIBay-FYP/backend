@@ -28,7 +28,7 @@ const ListingSchema = new mongoose.Schema({
   MinPrice: Number,
   FixedPrice: { type: Number, default: 0 },
   RentalDays: Number,
-  Qunatity: Number,
+Quantity: { type: Number, default: 1 },
   Currency: {type:String,default: 'PKR'},
   Documents: { type: [String], default: [] },
 });
