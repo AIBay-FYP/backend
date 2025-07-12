@@ -28,14 +28,16 @@ router.post("/", async (req, res) => {
     const FeedbackID = await generateFeedbackID();
     const feedback = new Feedback({
       FeedbackID,
-      Title,
-      Description,
+      Title: Title,
+      Description: Description,
       Date: new Date(),
       User: user._id,
       Status: "Pending"
     });
 
     await feedback.save();
+
+    console.log("Feedback saved:", feedback);
 
     // create notification for user that feedback is received
     const NotificationID = await generateNotificationID();

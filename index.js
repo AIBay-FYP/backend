@@ -19,6 +19,7 @@ const favorites = require("./routes/favorites")
 const contracts = require("./routes/contract")
 const reviews = require("./routes/review");
 const dispute = require("./routes/dispute");
+const feedbacks = require("./routes/feedbacks");
 const { listingCoordsCache, initializeListingCoordsCache } = require("./listingCache");
 
 dotenv.config();
@@ -48,6 +49,7 @@ app.use("/provider", provider_tabs);
 app.use("/contract", contracts);
 app.use('/reviews', reviews); 
 app.use('/dispute', dispute); 
+app.use('/feedbacks', feedbacks);
 
 
 mongoose.connect(process.env.MONGO_URI)
