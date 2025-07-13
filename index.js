@@ -22,6 +22,7 @@ const dispute = require("./routes/dispute");
 const feedbacks = require("./routes/feedbacks");
 const complianceSearch = require("./routes/ComplianceSearches");
 const { listingCoordsCache, initializeListingCoordsCache } = require("./listingCache");
+const payments = require("./routes/payments");
 
 dotenv.config();
 
@@ -52,6 +53,7 @@ app.use('/reviews', reviews);
 app.use('/dispute', dispute); 
 app.use('/feedbacks', feedbacks);
 app.use("/complianceSearch", complianceSearch);
+app.use('/payments', payments);
 
 
 mongoose.connect(process.env.MONGO_URI)

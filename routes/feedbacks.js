@@ -45,7 +45,7 @@ router.post("/", async (req, res) => {
       NotificationID,
       UserID: user._id,
       Message: `Your feedback "${Title}" was submitted successfully!`,
-      Type: "Info",
+      Type: "Alert",
       ReadStatus: false
     });
     await notification.save();
@@ -93,7 +93,7 @@ router.put('/:id', async (req, res) => {
       NotificationID,
       UserID: updatedFeedback.User._id,
       Message: `The status of your feedback "${updatedFeedback.Title}" has been updated to: ${Status}`,
-      Type: "Info",
+      Type: "Alert",
       ReadStatus: false
     });
     await notification.save();

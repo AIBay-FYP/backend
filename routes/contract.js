@@ -205,6 +205,11 @@ router.post('/generate-contract', async (req, res) => {
             });
 
             await contractRecord.save();
+            // Update the booking price with the contract's final_price
+            await Booking.updateOne(
+                { _id: new mongoose.Types.ObjectId(booking_id) },
+                { $set: { Price: final_price } }
+            );
 
             res.json({ success: true, contractUrl: uploadResult.secure_url, contractId: newContractId });
         } finally {

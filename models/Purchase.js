@@ -4,7 +4,7 @@ const purchaseSchema = new mongoose.Schema({
   PurchaseID: { type: String, required: true, unique: true },
   ConsumerID: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   ProviderID: { type: mongoose.Schema.Types.ObjectId, required: true },
-  ListingID: { type: mongoose.Schema.Types.ObjectId, ref: "Listing", required: true },
+  ListingIDs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Listing", required: true }], // <-- Array of listing IDs
 
   Price: { type: Number, required: true },
   Currency: { type: String, default: "PKR" },
@@ -17,8 +17,7 @@ const purchaseSchema = new mongoose.Schema({
   DatePurchased: { type: Date, default: Date.now },
   DateCompleted: { type: Date },
   DateCancelled: { type: Date },
-}
-, { collection: 'Purchase' }
-, { timestamps: true });
+  Quantities: [{ type: Number }], // <-- Array of quantities for each listing
+}, { collection: 'Purchase', timestamps: true });
 
 module.exports = mongoose.model("Purchase", purchaseSchema);

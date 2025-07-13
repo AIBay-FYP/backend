@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const complianceSearchSchema = new mongoose.Schema({
   SearchID: { type: String, required: true, unique: true },
   consumerFirebaseUID: { type: String, required: true },
-  consumerName: { type: String, required: true },
   searchQuery: { type: String, required: true },
   date: { type: Date, required: true },
   time: { type: String, required: true },

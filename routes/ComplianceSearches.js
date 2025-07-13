@@ -40,7 +40,7 @@ router.put("/", async (req, res) => {
     if (!updatedLog) return res.status(404).json({ error: "Search log not found" });
 
     // Optionally notify user
-    const user = await User.findOne({ Name: updatedLog.consumerName });
+    const user = await User.findOne({ FirebaseUID: updatedLog.consumerFirebaseUID });
     if (user) {
       const NotificationID = await generateNotificationID();
       const message = `Your account status changed: ${status} due to search violation.`;
@@ -64,7 +64,7 @@ router.put("/", async (req, res) => {
 // POST / log new search 
 router.post("/", async (req, res) => {
   try {
-    const { consumerFirebaseUID, searchQuery, consumerName } = req.body;
+    const { consumerFirebaseUID, searchQuery} = req.body;
     if (!consumerFirebaseUID || !searchQuery) return res.status(400).json({ error: "Missing fields" });
 
     const user = await User.findOne({ FirebaseUID: consumerFirebaseUID });
@@ -79,7 +79,6 @@ router.post("/", async (req, res) => {
     const log = new ComplianceSearch({
       SearchID,
       consumerFirebaseUID: user.FirebaseUID,
-      consumerName,
       searchQuery,
       date: now,
       time: now.toLocaleTimeString(),
@@ -91,7 +90,7 @@ router.post("/", async (req, res) => {
 
     // If violation → notify user
     if (violationType) {
-      const user = await User.findOne({ Name: consumerName });
+      const user = await User.findOne({ FirebaseUID: consumerFirebaseUID });
       if (user) {
         const NotificationID = await generateNotificationID();
         const notification = new Notification({

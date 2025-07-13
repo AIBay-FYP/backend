@@ -465,15 +465,16 @@ router.put('/edit/:id', async (req, res) => {
   }
 });
 
-// GET /listings/nearby?userId=<firebase_uid>
-router.get('/nearby', async (req, res) => {
+// GET /listings/nearby/:id
+router.get('/nearby/:id', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = req.params.id; // <-- Fix: get id as string
+    console.log("Finding nearby listings for user:", userId);
     if (!userId) {
       return res.status(400).json({ success: false, message: "FirebaseUID (userId) is required." });
     }
 
-    const user = await User.findOne({ FirebaseUID: userId });
+    const user = await User.findOne({ FirebaseUID: userId }); // <-- Fix: pass string, not object
     if (!user?.Location) {
       return res.status(404).json({ success: false, message: "User or user location not found." });
     }
