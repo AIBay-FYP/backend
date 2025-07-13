@@ -14,6 +14,7 @@ const notificationSchema = new mongoose.Schema({
       "Listing", 
       "Booking", 
       "Dispute", 
+      'Info',
       "Contract" // <-- Add "Contract" to enum
     ], 
     required: true 

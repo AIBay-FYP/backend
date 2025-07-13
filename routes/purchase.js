@@ -597,9 +597,10 @@ router.get("/user/:firebaseUID", async (req, res) => {
         { ProviderID: user._id }
       ]
     })
-    .populate("ListingIDs")
+    .populate({ path: "ListingIDs", model: "Listings" }) // <-- Fix here
     .sort({ DatePurchased: -1 });
 
+    console.log("Purchases fetched for user:", firebaseUID, purchases);
     res.status(200).json({ success: true, purchases });
   } catch (error) {
     console.error("Error fetching user purchases:", error);

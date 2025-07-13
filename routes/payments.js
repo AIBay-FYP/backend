@@ -79,36 +79,186 @@ router.post("/release", async (req, res) => {
   const { paymentId } = req.body;
 
   try {
+    // Validate paymentId
+    if (!paymentId) {
+      return res.status(400).json({ success: false, error: "Payment ID is required" });
+    }
+
+    // Find payment
     const payment = await Payment.findOne({ PaymentID: paymentId });
-    if (!payment || payment.Status !== "Completed") {
+    if (!payment) {
+      console.error(`Payment not found for PaymentID: ${paymentId}`);
+      return res.status(404).json({ success: false, error: "Payment not found" });
+    }
+    if (payment.Status !== "Completed") {
+      console.error(`Invalid payment status: ${payment.Status} for PaymentID: ${paymentId}`);
       return res.status(400).json({ success: false, error: "Invalid or already released payment" });
     }
 
-    const netAmount = payment.Amount - payment.PlatformFee;
-    console.log("Releasing payment to provider:", payment.ProviderID, "Net Amount:", netAmount);
-    await User.findByIdAndUpdate(payment.ProviderID, {
-      $inc: { WalletBalance: netAmount }
-    });
+    // Validate ProviderID
+    if (!mongoose.Types.ObjectId.isValid(payment.ProviderID)) {
+      console.error(`Invalid ProviderID: ${payment.ProviderID}`);
+      return res.status(400).json({ success: false, error: "Invalid ProviderID" });
+    }
 
+    // Calculate net amount
+    const netAmount = payment.Amount - (payment.PlatformFee || 0);
+    if (isNaN(netAmount) || netAmount < 0) {
+      console.error(`Invalid net amount: Amount=${payment.Amount}, PlatformFee=${payment.PlatformFee}`);
+      return res.status(400).json({ success: false, error: "Invalid payment amount or platform fee" });
+    }
+    console.log(`Releasing payment: PaymentID=${paymentId}, ProviderID=${payment.ProviderID}, NetAmount=${netAmount}`);
+
+    // Find and update user wallet
+    const user = await User.findById(payment.ProviderID);
+    if (!user) {
+      console.error(`User not found for ProviderID: ${payment.ProviderID}`);
+      return res.status(404).json({ success: false, error: "Provider not found" });
+    }
+
+    // Ensure WalletBalance is initialized
+    if (user.WalletBalance == null) {
+      user.WalletBalance = 0;
+    }
+
+    // Update wallet balance
+    const updatedUser = await User.findByIdAndUpdate(
+      payment.ProviderID,
+      { $inc: { WalletBalance: netAmount } },
+      { new: true, runValidators: true }
+    );
+    if (!updatedUser) {
+      console.error(`Failed to update wallet for ProviderID: ${payment.ProviderID}`);
+      return res.status(500).json({ success: false, error: "Failed to update provider wallet" });
+    }
+    console.log(`Updated wallet: ProviderID=${payment.ProviderID}, New WalletBalance=${updatedUser.WalletBalance}`);
+
+    // Update payment status
     payment.Status = "Released";
     payment.ReleasedAt = new Date();
     await payment.save();
+    console.log(`Payment updated: PaymentID=${paymentId}, Status=Released`);
 
+    // Update Booking or Purchase
     if (payment.IsRental) {
       await Booking.findByIdAndUpdate(payment.BookingID, {
         EscrowStatus: "Released",
         Status: "Completed"
       });
+      console.log(`Updated Booking: BookingID=${payment.BookingID}, EscrowStatus=Released`);
     } else {
       await Purchase.findByIdAndUpdate(payment.PurchaseID, {
         EscrowStatus: "Released",
         Status: "Completed"
       });
+      console.log(`Updated Purchase: PurchaseID=${payment.PurchaseID}, EscrowStatus=Released`);
     }
 
-    res.status(200).json({ success: true, message: "Payment released to provider." });
+    // Log transaction
+    await Transaction.create({
+      TransactionID: `TR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      UserID: payment.ProviderID,
+      Amount: netAmount,
+      Type: "Release",
+      PaymentID: payment._id,
+      Description: `Payment released to provider for PaymentID: ${paymentId}`
+    });
+    console.log(`Transaction logged: UserID=${payment.ProviderID}, Amount=${netAmount}`);
+
+    res.status(200).json({ success: true, message: "Payment released to provider.", walletBalance: updatedUser.WalletBalance });
   } catch (error) {
-    console.error("Error releasing payment:", error);
+    console.error(`Error releasing payment for PaymentID=${paymentId}: ${error.message}`);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// POST /api/payments/release-purchase
+router.post("/release-purchase", async (req, res) => {
+  const { purchaseId } = req.body;
+
+  try {
+    // Validate purchaseId
+    if (!purchaseId) {
+      return res.status(400).json({ success: false, error: "Purchase ID is required" });
+    }
+
+    // Find payment
+    const payment = await Payment.findOne({ PurchaseID: purchaseId });
+    if (!payment) {
+      console.error(`Payment not found for PurchaseID: ${purchaseId}`);
+      return res.status(404).json({ success: false, error: "Payment not found for this purchase" });
+    }
+    if (payment.Status !== "Completed") {
+      console.error(`Invalid payment status: ${payment.Status} for PurchaseID: ${purchaseId}`);
+      return res.status(400).json({ success: false, error: "Invalid or already released payment for this purchase" });
+    }
+
+    // Validate ProviderID
+    if (!mongoose.Types.ObjectId.isValid(payment.ProviderID)) {
+      console.error(`Invalid ProviderID: ${payment.ProviderID}`);
+      return res.status(400).json({ success: false, error: "Invalid ProviderID" });
+    }
+
+    // Calculate net amount
+    const netAmount = payment.Amount - (payment.PlatformFee || 0);
+    if (isNaN(netAmount) || netAmount < 0) {
+      console.error(`Invalid net amount: Amount=${payment.Amount}, PlatformFee=${payment.PlatformFee}`);
+      return res.status(400).json({ success: false, error: "Invalid payment amount or platform fee" });
+    }
+    console.log(`Releasing payment: PurchaseID=${purchaseId}, ProviderID=${payment.ProviderID}, NetAmount=${netAmount}`);
+
+    // Find and update user wallet
+    const user = await User.findById(payment.ProviderID);
+    if (!user) {
+      console.error(`User not found for ProviderID: ${payment.ProviderID}`);
+      return res.status(404).json({ success: false, error: "Provider not found" });
+    }
+
+    // Ensure WalletBalance is initialized
+    if (user.WalletBalance == null) {
+      user.WalletBalance = 0;
+      await user.save();
+    }
+
+    // Update wallet balance
+    const updatedUser = await User.findByIdAndUpdate(
+      payment.ProviderID,
+      { $inc: { WalletBalance: netAmount } },
+      { new: true, runValidators: true }
+    );
+    if (!updatedUser) {
+      console.error(`Failed to update wallet for ProviderID: ${payment.ProviderID}`);
+      return res.status(500).json({ success: false, error: "Failed to update provider wallet" });
+    }
+    console.log(`Updated wallet: ProviderID=${payment.ProviderID}, New WalletBalance=${updatedUser.WalletBalance}`);
+
+    // Update payment status
+    payment.Status = "Released";
+    payment.ReleasedAt = new Date();
+    await payment.save();
+    console.log(`Payment updated: PurchaseID=${purchaseId}, Status=Released`);
+
+    // Update Purchase
+    await Purchase.findByIdAndUpdate(payment.PurchaseID, {
+      EscrowStatus: "Released",
+      Status: "Completed"
+    });
+    console.log(`Updated Purchase: PurchaseID=${purchaseId}, EscrowStatus=Released`);
+
+    // Log transaction
+    await Transaction.create({
+      TransactionID: `TR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      UserID: payment.ProviderID,
+      Amount: netAmount,
+      Type: "Release",
+      PaymentID: payment._id,
+      Description: `Payment released to provider for PurchaseID: ${purchaseId}`
+    });
+    console.log(`Transaction logged: UserID=${payment.ProviderID}, Amount=${netAmount}`);
+
+    res.status(200).json({ success: true, message: "Payment released to provider for purchase.", walletBalance: updatedUser.WalletBalance });
+  } catch (error) {
+    console.error(`Error releasing payment for PurchaseID=${purchaseId}: ${error.message}`);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
