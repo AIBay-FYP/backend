@@ -6,6 +6,7 @@ const Purchase = require("../models/Purchase");
 const Notification = require("../models/Notification");
 const Cart = require("../models/Cart");
 const { default: mongoose } = require("mongoose");
+const sendNotification = require("../utils/sendNotification");
 
 
 const { updateDemandScore } = require("../utils/demandScore");
@@ -67,15 +68,15 @@ router.post("/now", async (req, res) => {
      // Update demand score for the listing
      await updateDemandScore(listingID, "bookingRequest");
 
-    // Notify the provider
-    await new Notification({
-      NotificationID: `N-${Date.now()}`,
-      UserID: listing.ProviderID,
-      Message: `You have a new purchase request for: ${listing.Title}`,
-      Type: "Info",
-      ReadStatus: false,
-      Timestamp: new Date()
-    }).save();
+    // // Notify the provider
+    // await new Notification({
+    //   NotificationID: `N-${Date.now()}`,
+    //   UserID: listing.ProviderID,
+    //   Message: `You have a new purchase request for: ${listing.Title}`,
+    //   Type: "Info",
+    //   ReadStatus: false,
+    //   Timestamp: new Date()
+    // }).save();
 
     res.status(201).json({
       message: "Purchase created successfully and added to cart (if not already present)",
@@ -91,12 +92,12 @@ router.post("/now", async (req, res) => {
 router.post("/checkout", async (req, res) => {
   try {
     const { firebaseUID, items } = req.body;
-    
+
     // Validate inputs
     if (!firebaseUID || !items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid request. FirebaseUID and items array are required." 
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request. FirebaseUID and items array are required."
       });
     }
 
@@ -106,71 +107,35 @@ router.post("/checkout", async (req, res) => {
 
     // 2. Check if items are all from the same provider
     const providerIds = new Set();
+    const listingIds = [];
+    const quantities = [];
+    let totalPrice = 0;
+
     for (const item of items) {
       if (!item.listingID) {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Each item must have a listingID" 
+        return res.status(400).json({
+          success: false,
+          message: "Each item must have a listingID"
         });
       }
-      
+
       const listing = await Listing.findById(item.listingID);
       if (!listing) {
-        return res.status(400).json({ 
-          success: false, 
-          message: `Listing with ID ${item.listingID} not found` 
+        return res.status(400).json({
+          success: false,
+          message: `Listing with ID ${item.listingID} not found`
         });
       }
-      
+
       providerIds.add(listing.ProviderID.toString());
-    }
-    
-    if (providerIds.size > 1) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "All items must be from the same provider to checkout." 
-      });
-    }
-    
-    const providerID = Array.from(providerIds)[0];
+      listingIds.push(listing._id);
+      const qty = item.quantity || 1;
+      quantities.push(qty);
+      totalPrice += (item.price * qty);
 
-    // 3. Create a Purchase entry for each item
-    const purchases = [];
-    
-    for (const item of items) {
-      const listing = await Listing.findById(item.listingID);
-      if (!listing) continue;
-
-      // Calculate the price based on quantity
-      const itemPrice = item.price * (item.quantity || 1);
-
-      const newPurchase = new Purchase({
-        PurchaseID: `PUR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-        ConsumerID: user._id,
-        ProviderID: providerID,
-        ListingID: item.listingID,
-        Quantity: item.quantity || 1,
-        Price: itemPrice,
-        SecurityFee: item.securityFee || 0,
-        CancellationFee: item.cancellationFee || 0,
-        Currency: "PKR",
-        Status: "Pending",
-        EscrowStatus: "Pending",
-        DatePurchased: new Date()
-      });
-
-      await newPurchase.save();
-      purchases.push(newPurchase);
-
-       // Update the listing's quantity
-       const newQuantity = Math.max(0, listing.Qunatity - requestedQuantity);
-       inventoryUpdates.push(
-         Listing.findByIdAndUpdate(
-           item.listingID,
-           { $set: { Qunatity: newQuantity } },
-           { new: true }
-         )
-       );
+      // Update the listing's quantity
+      listing.Quantity = Math.max(0, listing.Quantity - qty);
+      await listing.save();
 
       // Update demand score for the listing
       try {
@@ -178,56 +143,69 @@ router.post("/checkout", async (req, res) => {
       } catch (e) {
         console.log("Error updating demand score:", e);
       }
-
-      // 5. Notify provider
-      try {
-        await new Notification({
-          NotificationID: `N-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-          UserID: providerID,
-          Message: `A new purchase has been made for your listing: ${listing.Name || listing.Title}`,
-          Type: "Alert",
-          ReadStatus: false,
-          Timestamp: new Date()
-        }).save();
-      } catch (e) {
-        console.log("Error creating notification:", e);
-      }
     }
 
-    await Promise.all(inventoryUpdates);
-    console.log("All inventory quantities updated successfully");
+    if (providerIds.size > 1) {
+      return res.status(400).json({
+        success: false,
+        message: "All items must be from the same provider to checkout."
+      });
+    }
 
-    // 6. Clear items from the cart if they exist
+    const providerID = Array.from(providerIds)[0];
+
+    // 3. Create a single Purchase entry for all items
+    const purchase = new Purchase({
+      PurchaseID: `PUR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      ConsumerID: user._id,
+      ProviderID: providerID,
+      ListingIDs: listingIds,
+      Quantities: quantities,
+      Price: totalPrice,
+      Currency: "PKR",
+      Status: "Pending",
+      EscrowStatus: "Pending",
+      DatePurchased: new Date()
+    });
+
+    await purchase.save();
+
+    // 4. Notify provider (in-app and FCM if provider has fcm_token)
+    try {
+      // await new Notification({
+      //   NotificationID: `N-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+      //   UserID: providerID,
+      //   Message: `A new purchase has been made for your listings.`,
+      //   Type: "Alert",
+      //   ReadStatus: false,
+      //   Timestamp: new Date()
+      // }).save();
+
+      // Check provider's fcm_token and send FCM notification
+      // const providerUser = await User.findById(providerID);
+      // if (providerUser && providerUser.fcm_token) {
+      //   await sendNotification({
+      //     token: providerUser.fcm_token,
+      //     title: "New Purchase",
+      //     body: "A new purchase has been made for your listings.",
+      //     data: {
+      //       type: "Purchase",
+      //       purchaseId: purchase.PurchaseID
+      //     }
+      //   });
+      // }
+    } catch (e) {
+      console.log("Error creating notification or sending FCM:", e);
+    }
+
+    // 5. Clear items from the cart if they exist
     try {
       const cart = await Cart.findOne({ ConsumerID: user._id });
       if (cart) {
-        console.log("Cart before removal:", cart.Items.map(item => item.ListingID.toString()));
-        
-        // Get the list of listing IDs purchased (normalize to strings)
-        const purchasedListingIds = items.map(item => item.listingID.toString());
-        console.log("Purchased listing IDs:", purchasedListingIds);
-        
-        // Filter out the purchased items with strict comparison
-        const originalLength = cart.Items.length;
-        cart.Items = cart.Items.filter(item => {
-          const itemListingIdString = item.ListingID.toString();
-          const shouldKeep = !purchasedListingIds.includes(itemListingIdString);
-          console.log(`Item ${itemListingIdString}: keep=${shouldKeep}`);
-          return shouldKeep;
-        });
-        
-        console.log(`Removed ${originalLength - cart.Items.length} items from cart`);
-        
-        // Only save if there were changes
-        if (originalLength !== cart.Items.length) {
-          cart.LastUpdated = new Date();
-          await cart.save();
-          console.log("Cart saved after removing purchased items");
-        } else {
-          console.log("No items were removed from cart");
-        }
-      } else {
-        console.log("No cart found to update");
+        const purchasedListingIds = listingIds.map(id => id.toString());
+        cart.Items = cart.Items.filter(item => !purchasedListingIds.includes(item.ListingID.toString()));
+        cart.LastUpdated = new Date();
+        await cart.save();
       }
     } catch (e) {
       console.error("Error updating cart:", e.message, e.stack);
@@ -236,15 +214,15 @@ router.post("/checkout", async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Checkout successful",
-      purchases
+      purchase
     });
 
   } catch (error) {
     console.error("Checkout error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Server error", 
-      error: error.message 
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
     });
   }
 });
@@ -602,5 +580,31 @@ router.patch("/complete-consumer", async (req, res) => {
       res.status(500).json({ message: "Server error", error });
     }
 });  
+
+// GET /purchase/user/:firebaseUID
+router.get("/user/:firebaseUID", async (req, res) => {
+  try {
+    const { firebaseUID } = req.params;
+    const user = await User.findOne({ FirebaseUID: firebaseUID });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Fetch purchases where user is either Consumer or Provider
+    const purchases = await Purchase.find({
+      $or: [
+        { ConsumerID: user._id },
+        { ProviderID: user._id }
+      ]
+    })
+    .populate("ListingIDs")
+    .sort({ DatePurchased: -1 });
+
+    res.status(200).json({ success: true, purchases });
+  } catch (error) {
+    console.error("Error fetching user purchases:", error);
+    res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+});
 
 module.exports = router;

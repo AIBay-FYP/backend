@@ -143,7 +143,8 @@ router.get('/between/:consumerId/:providerId', async (req, res) => {
     const bookings = await Booking.find({
       ConsumerID: consumer,
       ProviderID: provider,
-      Status: { $in: ['Confirmed'] }
+      Status: { $in: ['Confirmed','Completed'] },
+      EscrowStatus: { $in: ['Completed'] }
     })
     .sort({ StartDate: -1 })
     .populate('ListingID')  // Populate the ListingID to get access to the serviceType
@@ -532,7 +533,7 @@ router.patch("/complete/:id", async (req, res) => {
 
     
     // Update demand score for the listing
-    await updateDemandScore(listingID, "completedBooking");
+    await updateDemandScore(booking.ListingID, "completedBooking");
 
     await booking.save();
 

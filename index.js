@@ -21,6 +21,7 @@ const reviews = require("./routes/review");
 const dispute = require("./routes/dispute");
 const feedbacks = require("./routes/feedbacks");
 const { listingCoordsCache, initializeListingCoordsCache } = require("./listingCache");
+const payments = require("./routes/payments");
 
 dotenv.config();
 
@@ -50,12 +51,13 @@ app.use("/contract", contracts);
 app.use('/reviews', reviews); 
 app.use('/dispute', dispute); 
 app.use('/feedbacks', feedbacks);
+app.use('/payments', payments);
 
 
 mongoose.connect(process.env.MONGO_URI)
 .then(() => {
   console.log("MongoDB Connected");
-  initializeListingCoordsCache(); // call after DB is ready
+//   initializeListingCoordsCache();
 })
 .catch((err) => console.error("MongoDB connection error:", err));
 

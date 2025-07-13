@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema({
   BusinessType: String,
   Services: [String],
   updatedInterests: { type: Boolean, default: false },
+  WalletBalance: { type: Number},
   fcm_token: { type: String, required: false }  // This field is optional, but you can make it required based on your app logic
 });
 
