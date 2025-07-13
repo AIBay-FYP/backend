@@ -5,6 +5,8 @@ const User = require("../models/user");
 const Listing = require("../models/Listings");
 const Notification = require("../models/Notification");
 const sendNotification = require("../utils/sendNotification")
+const Transaction = require("../models/Transaction");
+const Payment = require("../models/Payment");
 
 const { updateDemandScore } = require("../utils/demandScore");
 
@@ -392,11 +394,46 @@ router.patch("/cancel/:id", async (req, res) => {
     }
 
     let cancellationFee = 0;
+    let refundAmount = 0;
 
-    if (booking.Status === "Approved") {
-      cancellationFee = booking.ListingID.CancellationFee || 0;
-      // In real payment logic, deduct cancellation fee from consumer or withhold escrow
+    const listing = await Listing.findById(booking.ListingID._id);
+    if (listing) {
+      listing.Availability = true;
+      await listing.save();
     }
+
+
+   if (booking.EscrowStatus === "Completed") {
+      cancellationFee = booking.ListingID.CancellationFee || 0;
+      const payment = await Payment.findOne({ BookingID: booking._id });
+      if (payment) {
+        refundAmount = payment.Amount - cancellationFee;
+
+        // Refund to consumer
+        await User.findByIdAndUpdate(booking.ConsumerID, { $inc: { WalletBalance: refundAmount } });
+        // Fee to provider
+        await User.findByIdAndUpdate(booking.ProviderID, { $inc: { WalletBalance: cancellationFee } });
+
+        await Transaction.create({
+          TransactionID: `TR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+          UserID: booking.ConsumerID,
+          Amount: refundAmount,
+          Type: "Refund",
+          PaymentID: payment._id,
+          Description: "Refund after cancellation (escrow completed)"
+        });
+
+        await Transaction.create({
+          TransactionID: `TR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+          UserID: booking.ProviderID,
+          Amount: cancellationFee,
+          Type: "Withdraw",
+          PaymentID: payment._id,
+          Description: "Cancellation fee received after booking cancellation"
+        });
+      }
+    }
+
 
     booking.Status = "Cancelled";
     booking.EscrowStatus = "Released";
@@ -460,7 +497,6 @@ router.patch("/cancel/:id", async (req, res) => {
   }
 });
 
-// PATCH Mark Booking as Complete (by Consumer or Provider)
 router.patch("/complete/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -469,7 +505,7 @@ router.patch("/complete/:id", async (req, res) => {
     const user = await User.findOne({ FirebaseUID: firebaseUID });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findById(id).populate("ListingID");
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
     if (user._id.equals(booking.ConsumerID)) {
@@ -480,16 +516,75 @@ router.patch("/complete/:id", async (req, res) => {
       return res.status(403).json({ message: "You are not part of this booking." });
     }
 
+    let securityFeeRefunded = false;
+    let securityFeeMessage = "";
+    let securityFee = 0;
+
     if (booking.ConsumerCompleted && booking.ProviderCompleted) {
       booking.Status = "Completed";
       booking.EscrowStatus = "Completed";
       booking.DateCompleted = new Date();
 
-      // Notify both parties
+      // Set listing available again
+      const listing = await Listing.findById(booking.ListingID);
+      if (listing) {
+        listing.Availability = true;
+        await listing.save();
+      }
+
+      // Security fee logic
+      const payment = await Payment.findOne({ BookingID: booking._id });
+      if (payment && payment.SecurityFee > 0) {
+        securityFee = payment.SecurityFee;
+        // Check if completed after EndDate
+        if (booking.DateCompleted > booking.EndDate) {
+          // Security fee NOT refunded to consumer, added to provider's wallet
+          await User.findByIdAndUpdate(booking.ProviderID, { $inc: { WalletBalance: securityFee } });
+
+          await Transaction.create({
+            TransactionID: `TR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            UserID: booking.ProviderID,
+            Amount: securityFee,
+            Type: "Withdraw",
+            PaymentID: payment._id,
+            Description: "Security fee added to provider due to late completion"
+          });
+
+          securityFeeRefunded = false;
+          securityFeeMessage = `Security fee of Rs.${securityFee} was not refunded to the consumer due to late completion and has been added to the provider's wallet.`;
+        } else {
+          // Security fee refunded to consumer, deducted from provider
+          await User.findByIdAndUpdate(booking.ConsumerID, { $inc: { WalletBalance: securityFee } });
+          await User.findByIdAndUpdate(booking.ProviderID, { $inc: { WalletBalance: -securityFee } });
+
+          await Transaction.create({
+            TransactionID: `TR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            UserID: booking.ConsumerID,
+            Amount: securityFee,
+            Type: "Refund",
+            PaymentID: payment._id,
+            Description: "Security fee refunded on booking completion"
+          });
+
+          await Transaction.create({
+            TransactionID: `TR-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            UserID: booking.ProviderID,
+            Amount: -securityFee,
+            Type: "Withdraw",
+            PaymentID: payment._id,
+            Description: "Security fee deducted on booking completion"
+          });
+
+          securityFeeRefunded = true;
+          securityFeeMessage = `Security fee of Rs.${securityFee} has been refunded to the consumer.`;
+        }
+      }
+
+      // Notify both parties about completion and security fee status
       await new Notification({
         NotificationID: `N-${Date.now()}`,
         UserID: booking.ConsumerID,
-        Message: `Booking ${booking._id} is marked as completed.`,
+        Message: `Booking ${booking._id} is marked as completed. ${securityFeeMessage}`,
         Type: "Info",
         ReadStatus: false,
         Timestamp: new Date()
@@ -498,7 +593,7 @@ router.patch("/complete/:id", async (req, res) => {
       await new Notification({
         NotificationID: `N-${Date.now() + 1}`,
         UserID: booking.ProviderID,
-        Message: `Booking ${booking._id} is marked as completed.`,
+        Message: `Booking ${booking._id} is marked as completed. ${securityFeeMessage}`,
         Type: "Info",
         ReadStatus: false,
         Timestamp: new Date()
@@ -509,7 +604,7 @@ router.patch("/complete/:id", async (req, res) => {
         await sendNotification({
           token: booking.ConsumerID.fcm_token,
           title: "Booking Completed",
-          body: `Your booking for "${booking.ListingID.Title}" is marked as completed.`,
+          body: `Your booking for "${booking.ListingID.Title}" is marked as completed. ${securityFeeMessage}`,
           data: {
             type: "Booking",
             listingId: booking.ListingID._id.toString(),
@@ -521,7 +616,7 @@ router.patch("/complete/:id", async (req, res) => {
         await sendNotification({
           token: booking.ProviderID.fcm_token,
           title: "Booking Completed",
-          body: `Booking for "${booking.ListingID.Title}" is marked as completed.`,
+          body: `Booking for "${booking.ListingID.Title}" is marked as completed. ${securityFeeMessage}`,
           data: {
             type: "Booking",
             listingId: booking.ListingID._id.toString(),
@@ -531,19 +626,22 @@ router.patch("/complete/:id", async (req, res) => {
       }
     }
 
-    
     // Update demand score for the listing
     await updateDemandScore(booking.ListingID, "completedBooking");
 
     await booking.save();
 
-    res.status(200).json({ message: "Booking status updated", booking });
+    res.status(200).json({
+      message: "Booking status updated",
+      booking,
+      securityFeeRefunded,
+      securityFeeMessage
+    });
   } catch (error) {
     console.error("Complete booking error:", error);
     res.status(500).json({ message: "Server error", error });
   }
 });
-
 
 router.patch("/confirm/:id", async (req, res) => {
   try {
@@ -591,6 +689,12 @@ router.patch("/confirm/:id", async (req, res) => {
     booking.Status = "Confirmed";
     booking.EscrowStatus = "Pending";
     booking.updatedAt = new Date();
+
+    const listing = await Listing.findById(booking.ListingID._id);
+    if (listing) {
+      listing.Availability = false;
+      await listing.save();
+    }
 
     await booking.save();
 
