@@ -1,22 +1,17 @@
+// utils/geo_utils.js
+require('dotenv').config();  
+
 const NodeGeocoder = require('node-geocoder');
 
-// Define custom fetch with User-Agent header
 const options = {
-  provider: 'openstreetmap',
-  fetch: (url, opts) => {
-    return fetch(url, {
-      ...opts,
-      headers: {
-        ...opts.headers,
-        'User-Agent': 'MyFYPApp/1.0 (aibay.site@gmail.com)' // <-- Replace with your real app name & email
-      }
-    });
-  }
+  provider: 'locationiq',
+  apiKey: process.env.LOCATIONIQ_API_KEY,
+  formatter: null
 };
 
 const geocoder = NodeGeocoder(options);
 
-// Geocode location string → { lat, lon }
+// Geocode location string → { latitude, longitude }
 async function geocodeLocation(location) {
   try {
     const res = await geocoder.geocode(location);
@@ -30,10 +25,10 @@ async function geocodeLocation(location) {
   }
 }
 
-// Calculate distance between two coordinates (in km)
+// Calculate distance between two coords (in km)
 function getDistanceInKm(lat1, lon1, lat2, lon2) {
   const toRad = val => (val * Math.PI) / 180;
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const a =
