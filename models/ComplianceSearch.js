@@ -10,6 +10,6 @@ const complianceSearchSchema = new mongoose.Schema({
   NotificationID: { type: mongoose.Schema.Types.ObjectId, ref: 'Notification' },
   blockedUntil: { type: Date },
   Status: { type: String, enum: ['Block temporarily', 'Block permanently', 'Notify Users'], default: 'Notify Users' }
-}, { collection: 'ComplianceSearches' });
+}, { collection: 'ComplianceSearch' });
 
 module.exports = mongoose.model('ComplianceSearch', complianceSearchSchema);

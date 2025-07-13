@@ -106,6 +106,7 @@ router.post("/", async (req, res) => {
       }
     }
 
+    console.log("Search logged:", log);
     res.status(201).json({ message: "Search logged", log });
   } catch (error) {
     console.error("Error logging search:", error);
