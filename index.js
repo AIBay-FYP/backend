@@ -59,7 +59,7 @@ app.use('/payments', payments);
 mongoose.connect(process.env.MONGO_URI)
 .then(() => {
   console.log("MongoDB Connected");
-  initializeListingCoordsCache(); 
+//   initializeListingCoordsCache(); 
 })
 .catch((err) => console.error("MongoDB connection error:", err));
 

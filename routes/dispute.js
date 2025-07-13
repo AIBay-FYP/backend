@@ -67,6 +67,7 @@ router.post("/:firebaseUID", async (req, res) => {
 router.get("/booking/:bookingId", async (req, res) => {
   try {
     const disputes = await Dispute.find({ BookingID: req.params.bookingId }).populate("CreatedBy", "Name");
+    console.log("Disputes for booking:", disputes);
     res.status(200).json({ disputes });
   } catch (error) {
     console.error("Error fetching disputes:", error);
@@ -78,12 +79,13 @@ router.get("/booking/:bookingId", async (req, res) => {
 // @desc    Get all disputes created by a user and send notification if any status has changed
 router.get("/user/:userId", async (req, res) => {
   try {
+    console.log("Fetching disputes for user:", req.params.userId);
     const user = await User.findOne({ FirebaseUID: req.params.userId });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     const disputes = await Dispute.find({ CreatedBy: user._id }).sort({ Date: -1 });
-
+    console.log("Disputes for user:", disputes);
     // Send notification for disputes with updated status (not "Pending")
     for (const dispute of disputes) {
       if (dispute.Status && dispute.Status !== "Pending") {
