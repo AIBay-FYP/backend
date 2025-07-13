@@ -402,11 +402,13 @@ router.patch("/cancel/:id", async (req, res) => {
       await listing.save();
     }
 
-
-   if (booking.EscrowStatus === "Completed") {
-      cancellationFee = booking.ListingID.CancellationFee || 0;
+    // If escrow is completed, handle cancellation fee and refund
+    if (booking.EscrowStatus === "Completed") {
+      // Calculate cancellation fee as percentage
       const payment = await Payment.findOne({ BookingID: booking._id });
       if (payment) {
+        const cancellationFeePercent = listing.CancellationFee || 0; // e.g. 10 for 10%
+        cancellationFee = Math.round((payment.Amount * cancellationFeePercent) / 100);
         refundAmount = payment.Amount - cancellationFee;
 
         // Refund to consumer
@@ -420,7 +422,7 @@ router.patch("/cancel/:id", async (req, res) => {
           Amount: refundAmount,
           Type: "Refund",
           PaymentID: payment._id,
-          Description: "Refund after cancellation (escrow completed)"
+          Description: `Refund after cancellation (escrow completed). Cancellation fee: ${cancellationFeePercent}%`
         });
 
         await Transaction.create({
@@ -429,11 +431,10 @@ router.patch("/cancel/:id", async (req, res) => {
           Amount: cancellationFee,
           Type: "Withdraw",
           PaymentID: payment._id,
-          Description: "Cancellation fee received after booking cancellation"
+          Description: `Cancellation fee received after booking cancellation (${cancellationFeePercent}%)`
         });
       }
     }
-
 
     booking.Status = "Cancelled";
     booking.EscrowStatus = "Released";
@@ -441,11 +442,11 @@ router.patch("/cancel/:id", async (req, res) => {
     booking.updatedAt = new Date();
     await booking.save();
 
-    // Add notification (you already set this up)
+    // Add notification
     await new Notification({
       NotificationID: `N-${Date.now()}`,
       UserID: booking.ProviderID,
-      Message: `Booking for your service ${booking.ListingID.Title} has been cancelled.`,
+      Message: `Booking for your service ${booking.ListingID.Title} has been cancelled. Cancellation fee applied: ${cancellationFee}`,
       Type: "Alert",
       ReadStatus: false,
       Timestamp: new Date()
@@ -454,7 +455,7 @@ router.patch("/cancel/:id", async (req, res) => {
     await new Notification({
       NotificationID: `N-${Date.now() + 1}`,
       UserID: booking.ConsumerID,
-      Message: `You have cancelled the booking for "${booking.ListingID.Title}".`,
+      Message: `You have cancelled the booking for "${booking.ListingID.Title}". Refund: Rs.${refundAmount}, Cancellation fee: Rs.${cancellationFee}`,
       Type: "Alert",
       ReadStatus: false,
       Timestamp: new Date()
@@ -465,7 +466,7 @@ router.patch("/cancel/:id", async (req, res) => {
       await sendNotification({
         token: booking.ProviderID.fcm_token,
         title: "Booking Cancelled",
-        body: `A booking for "${booking.ListingID.Title}" has been cancelled.`,
+        body: `A booking for "${booking.ListingID.Title}" has been cancelled. Cancellation fee applied: Rs.${cancellationFee}`,
         data: {
           type: "Booking",
           listingId: booking.ListingID._id.toString(),
@@ -477,7 +478,7 @@ router.patch("/cancel/:id", async (req, res) => {
       await sendNotification({
         token: booking.ConsumerID.fcm_token,
         title: "Booking Cancelled",
-        body: `You have cancelled your booking for "${booking.ListingID.Title}".`,
+        body: `You have cancelled your booking for "${booking.ListingID.Title}". Refund: Rs.${refundAmount}, Cancellation fee: Rs.${cancellationFee}`,
         data: {
           type: "Booking",
           listingId: booking.ListingID._id.toString(),
@@ -489,6 +490,7 @@ router.patch("/cancel/:id", async (req, res) => {
     res.status(200).json({
       message: `Booking cancelled. Cancellation fee: ${cancellationFee}`,
       cancellationFee,
+      refundAmount,
       booking
     });
   } catch (error) {
@@ -497,6 +499,7 @@ router.patch("/cancel/:id", async (req, res) => {
   }
 });
 
+// PATCH Mark Booking as Complete (by Consumer or Provider)
 router.patch("/complete/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -535,7 +538,10 @@ router.patch("/complete/:id", async (req, res) => {
       // Security fee logic
       const payment = await Payment.findOne({ BookingID: booking._id });
       if (payment && payment.SecurityFee > 0) {
-        securityFee = payment.SecurityFee;
+        // Security fee is percentage
+        const securityFeePercent = listing.SecurityFee || 0; // e.g. 10 for 10%
+        securityFee = Math.round((payment.Amount * securityFeePercent) / 100);
+
         // Check if completed after EndDate
         if (booking.DateCompleted > booking.EndDate) {
           // Security fee NOT refunded to consumer, added to provider's wallet
@@ -547,11 +553,11 @@ router.patch("/complete/:id", async (req, res) => {
             Amount: securityFee,
             Type: "Withdraw",
             PaymentID: payment._id,
-            Description: "Security fee added to provider due to late completion"
+            Description: `Security fee (${securityFeePercent}%) added to provider due to late completion`
           });
 
           securityFeeRefunded = false;
-          securityFeeMessage = `Security fee of Rs.${securityFee} was not refunded to the consumer due to late completion and has been added to the provider's wallet.`;
+          securityFeeMessage = `Security fee of Rs.${securityFee} (${securityFeePercent}%) was not refunded to the consumer due to late completion and has been added to the provider's wallet.`;
         } else {
           // Security fee refunded to consumer, deducted from provider
           await User.findByIdAndUpdate(booking.ConsumerID, { $inc: { WalletBalance: securityFee } });
@@ -563,7 +569,7 @@ router.patch("/complete/:id", async (req, res) => {
             Amount: securityFee,
             Type: "Refund",
             PaymentID: payment._id,
-            Description: "Security fee refunded on booking completion"
+            Description: `Security fee (${securityFeePercent}%) refunded on booking completion`
           });
 
           await Transaction.create({
@@ -572,11 +578,11 @@ router.patch("/complete/:id", async (req, res) => {
             Amount: -securityFee,
             Type: "Withdraw",
             PaymentID: payment._id,
-            Description: "Security fee deducted on booking completion"
+            Description: `Security fee (${securityFeePercent}%) deducted on booking completion`
           });
 
           securityFeeRefunded = true;
-          securityFeeMessage = `Security fee of Rs.${securityFee} has been refunded to the consumer.`;
+          securityFeeMessage = `Security fee of Rs.${securityFee} (${securityFeePercent}%) has been refunded to the consumer.`;
         }
       }
 
