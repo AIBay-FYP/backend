@@ -144,7 +144,7 @@ router.get('/between/:consumerId/:providerId', async (req, res) => {
       ConsumerID: consumer,
       ProviderID: provider,
       Status: { $in: ['Confirmed','Completed'] },
-      EscrowStatus: { $in: ['Completed'] }
+      EscrowStatus: { $in: ['Pending','Completed'] }
     })
     .sort({ StartDate: -1 })
     .populate('ListingID')  // Populate the ListingID to get access to the serviceType
