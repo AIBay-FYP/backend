@@ -465,16 +465,19 @@ router.put('/edit/:id', async (req, res) => {
   }
 });
 
-// GET /listings/nearby/:id
+// Get nearby listings based on user location
 router.get('/nearby/:id', async (req, res) => {
   try {
-    const userId = req.params.id; // <-- Fix: get id as string
-    console.log("Finding nearby listings for user:", userId);
+    const userId = req.params.id;
+    const category = req.query.category; 
+
+    console.log("Finding nearby listings for user:", userId, "category:", category);
+
     if (!userId) {
       return res.status(400).json({ success: false, message: "FirebaseUID (userId) is required." });
     }
 
-    const user = await User.findOne({ FirebaseUID: userId }); // <-- Fix: pass string, not object
+    const user = await User.findOne({ FirebaseUID: userId });
     if (!user?.Location) {
       return res.status(404).json({ success: false, message: "User or user location not found." });
     }
@@ -484,7 +487,13 @@ router.get('/nearby/:id', async (req, res) => {
       return res.status(400).json({ success: false, message: "Failed to geocode user location." });
     }
 
-    const listings = await Listing.find({ Location: { $exists: true } });
+    // ✅ filter by category if provided
+    let query = { Location: { $exists: true } };
+    if (category) {
+      query.Category = category;
+    }
+
+    const listings = await Listing.find(query);
     const nearbyListings = [];
 
     for (let listing of listings) {
@@ -496,7 +505,7 @@ router.get('/nearby/:id', async (req, res) => {
         cachedCoords.lat, cachedCoords.lon
       );
 
-      if (distance <= 5) { // 5 km radius
+      if (distance <= 5) {
         nearbyListings.push({
           ...listing.toObject(),
           distanceInKm: distance
@@ -508,11 +517,10 @@ router.get('/nearby/:id', async (req, res) => {
 
     res.json({ success: true, listings: nearbyListings });
   } catch (error) {
-    console.error(" Error finding nearby listings:", error);
+    console.error("❌ Error finding nearby listings:", error);
     res.status(500).json({ success: false, message: "Internal server error." });
   }
 });
-
 
 //Get listings by category
 router.get("/:category", async (req, res) => {
