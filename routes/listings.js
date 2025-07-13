@@ -486,7 +486,7 @@ router.get('/nearby', async (req, res) => {
         cachedCoords.lat, cachedCoords.lon
       );
 
-      if (distance <= 5000) { // 5 km radius
+      if (distance <= 5) { // 5 km radius
         nearbyListings.push({
           ...listing.toObject(),
           distanceInKm: distance
