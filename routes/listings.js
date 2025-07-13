@@ -508,7 +508,7 @@ router.get('/nearby/:id', async (req, res) => {
 
     res.json({ success: true, listings: nearbyListings });
   } catch (error) {
-    console.error("❌ Error finding nearby listings:", error);
+    console.error(" Error finding nearby listings:", error);
     res.status(500).json({ success: false, message: "Internal server error." });
   }
 });

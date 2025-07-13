@@ -3,11 +3,11 @@ const admin = require("../firebaseAdmin");
 const Category = require('../models/Category');
 const mongoose = require("mongoose");
 const User = require("../models/user");
+const ComplianceSearch = require("../models/ComplianceSearch"); 
+
 const router = express.Router();
 
-/**
- * Function to generate the next sequential UserID in the format U001, U002, etc.
- */
+//Function to generate the next sequential UserID in the format U001, U002, etc.
 const getNextUserID = async () => {
     try {
         const lastUser = await User.findOne().sort({ UserID: -1 }).lean(); // Sort by UserID to get last assigned one
@@ -44,25 +44,55 @@ router.post("/verifyUser", async (req, res) => {
 
         // 🔹 Verify Firebase ID token
         const decodedToken = await admin.auth().verifyIdToken(token);
-        console.log("✅ Decoded Firebase Token:", decodedToken);
+        console.log("Decoded Firebase Token:", decodedToken);
 
         const { uid, phone_number } = decodedToken;
 
         // 🔹 Check if user exists in DB
         let user = await User.findOne({ Email: email });
 
+        // 🔍 Check compliance search logs for block status
+        const logs = await ComplianceSearch.find({
+        consumerFirebaseUID: user ? user.FirebaseUID : uid,  // fallback to decoded uid if new user
+        Status: { $in: ["Block temporarily", "Block permanently"] }
+        }).sort({ date: -1 }); // get most recent first if multiple
+
+        if (logs.length) {
+            const latestStatus = logs[0].Status;
+
+        if (latestStatus === "Block permanently") {
+            return res.status(403).json({ success: false, message: "Account permanently blocked due to policy violations." });
+        }
+       if (latestStatus === "Block temporarily") {
+            const blockedUntil = logs[0].blockedUntil;
+            const now = new Date();
+
+        if (blockedUntil && blockedUntil > now) {
+            const remainingMs = blockedUntil - now;
+            const remainingHours = Math.ceil(remainingMs / (1000 * 60 * 60));
+            return res.status(403).json({
+            success: false,
+            message: `Account temporarily blocked. Please try again after ${remainingHours} hour(s).`
+        });
+        } else {
+            // Block period expired; allow login
+            console.log("Temporary block expired; user allowed to sign in.");
+        }
+    }
+}
+        
         if (!user) {
             const newUserID = await getNextUserID(); // Function to get the next user ID
-            console.log(`✅ Assigning UserID: ${newUserID} to new user`);
+            console.log(`Assigning UserID: ${newUserID} to new user`);
 
             user = new User({
-                UserID: newUserID, // ✅ Required (Unique)
-                FirebaseUID: uid,  // ✅ Required (Unique)
-                Name: name || "Unknown User", // ✅ Required
-                Email: email || `user_${Date.now()}@example.com`, // ✅ Required (Unique) - fallback to a dummy email
-                Location: "city", // ✅ Required
-                ContactNumber: phone_number || "00000000000", // ✅ Required
-                CNIC: `cnic_${Date.now()}`, // ✅ Unique - give fallback to avoid schema error
+                UserID: newUserID, // Required (Unique)
+                FirebaseUID: uid,  // Required (Unique)
+                Name: name || "Unknown User", // Required
+                Email: email || `user_${Date.now()}@example.com`, //  Required (Unique) - fallback to a dummy email
+                Location: "city", // Required
+                ContactNumber: phone_number || "00000000000", //  Required
+                CNIC: `cnic_${Date.now()}`, // Unique - give fallback to avoid schema error
                 RoleType: "User",
                 CreatedAt: new Date(),
                 Rating: 4.0, // default already in schema, but can be explicitly set if needed
@@ -75,7 +105,7 @@ router.post("/verifyUser", async (req, res) => {
             });
               
             await user.save();
-            console.log("✅ New user saved successfully");
+            console.log("New user saved successfully");
         } else {
             console.log(`🔹 User already exists, updating details for ${email}`);
             console.log(`🔹 Current FCM Token: ${user.fcm_token}, New FCM Token: ${fcm_token}`);
@@ -88,13 +118,13 @@ router.post("/verifyUser", async (req, res) => {
             user.updatedAt = new Date();
 
             await user.save();
-            console.log("✅ Existing user updated successfully");
+            console.log("Existing user updated successfully");
         }
 
         return res.status(200).json({ success: true, message: "User verified successfully.", user });
 
     } catch (error) {
-        console.error("❌ Error verifying user:", error);
+        console.error("Error verifying user:", error);
 
         if (error.code === 11000) {
             return res.status(400).json({ success: false, message: "Email is already in use." });
