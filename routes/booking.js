@@ -608,7 +608,7 @@ router.patch("/confirm/:id", async (req, res) => {
 
   if (booking.ConsumerID.fcm_token) {
     await sendNotification({
-      token: provider.fcm_token,
+      token: booking.ConsumerID.fcm_token,
       title: "Booking Confirmation",
       body: `The booking has been confirmed for "${booking.ListingID.Title}"`,
       data: {
