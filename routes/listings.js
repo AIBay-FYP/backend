@@ -412,7 +412,7 @@ router.get("/recent", async (req, res) => {
   }
 });
 
-router.put('edit/:id', async (req, res) => {
+router.put('/edit/:id', async (req, res) => {
   try {
     const {
       Title,
@@ -425,10 +425,17 @@ router.put('edit/:id', async (req, res) => {
       CancellationFee,
       MinPrice,
       MaxPrice,
-      Availability
+      Availability,
+      Photos
     } = req.body;
 
-    const updated = await Listings.findByIdAndUpdate(
+    // Validate the ID
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid listing ID' });
+    }
+
+    // Use the correct model name: Listing
+    const updated = await Listing.findByIdAndUpdate(
       req.params.id,
       {
         Title,
@@ -441,18 +448,20 @@ router.put('edit/:id', async (req, res) => {
         CancellationFee,
         MinPrice,
         MaxPrice,
-        Availability
+        Availability,
+        Photos,
       },
       { new: true }
     );
 
     if (!updated) {
-      return res.status(404).json({ message: 'Listing not found' });
+      return res.status(404).json({ success: false, message: 'Listing not found' });
     }
 
-    res.json({ message: 'Listing updated', listing: updated });
+    return res.status(200).json({ success: true, message: 'Listing updated', listing: updated });
   } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error('Error updating listing:', err);
+    return res.status(500).json({ success: false, message: 'Server error', error: err.message });
   }
 });
 
